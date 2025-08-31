@@ -1,0 +1,327 @@
+### BookSpot API Test Collection
+### Base URL for local development
+@baseUrl = https://localhost:7071
+@contentType = application/json
+
+### Variables for testing (will be populated after creation)
+@profileId = test-profile-123
+@businessId = test-business-456
+@serviceId = test-service-789
+@bookingId = test-booking-101
+@businessHourId = test-hour-202
+@reviewId = test-review-303
+
+#######################################
+### PROFILES CONTROLLER TESTS
+#######################################
+
+### Create Profile
+POST {{baseUrl}}/profiles
+Content-Type: {{contentType}}
+
+{
+  "email": "john.doe@example.com",
+  "userType": "client"
+}
+
+### Get Profile by ID
+GET {{baseUrl}}/profiles/{{profileId}}
+
+### Update Profile
+PUT {{baseUrl}}/profiles/{{profileId}}
+Content-Type: {{contentType}}
+
+{
+  "id": "{{profileId}}",
+  "email": "john.updated@example.com",
+  "userType": "provider"
+}
+
+### Delete Profile
+DELETE {{baseUrl}}/profiles/{{profileId}}
+
+#######################################
+### BUSINESSES CONTROLLER TESTS
+#######################################
+
+### Create Business
+POST {{baseUrl}}/businesses
+Content-Type: {{contentType}}
+
+{
+  "providerId": "{{profileId}}",
+  "businessName": "Awesome Hair Salon",
+  "city": "New York"
+}
+
+### Get Business by ID
+GET {{baseUrl}}/businesses/{{businessId}}
+
+### Update Business
+PUT {{baseUrl}}/businesses/{{businessId}}
+Content-Type: {{contentType}}
+
+{
+  "id": "{{businessId}}",
+  "businessName": "Premium Hair Salon",
+  "city": "Manhattan",
+  "isActive": true
+}
+
+### Delete Business
+DELETE {{baseUrl}}/businesses/{{businessId}}
+
+#######################################
+### SERVICES CONTROLLER TESTS
+#######################################
+
+### Create Service
+POST {{baseUrl}}/services
+Content-Type: {{contentType}}
+
+{
+  "businessId": "{{businessId}}",
+  "name": "Haircut & Style",
+  "price": 45.99,
+  "durationMinutes": 60
+}
+
+### Get Service by ID
+GET {{baseUrl}}/services/{{serviceId}}
+
+### Update Service
+PUT {{baseUrl}}/services/{{serviceId}}
+Content-Type: {{contentType}}
+
+{
+  "id": "{{serviceId}}",
+  "name": "Premium Haircut & Style",
+  "price": 65.99,
+  "durationMinutes": 90
+}
+
+### Delete Service
+DELETE {{baseUrl}}/services/{{serviceId}}
+
+#######################################
+### BUSINESS HOURS CONTROLLER TESTS
+#######################################
+
+### Create Business Hour
+POST {{baseUrl}}/business-hours
+Content-Type: {{contentType}}
+
+{
+  "businessId": "{{businessId}}",
+  "dayOfWeek": 1,
+  "openTime": "09:00",
+  "closeTime": "18:00",
+  "isClosed": false
+}
+
+### Get Business Hour by ID
+GET {{baseUrl}}/business-hours/{{businessHourId}}
+
+### Update Business Hour
+PUT {{baseUrl}}/business-hours/{{businessHourId}}
+Content-Type: {{contentType}}
+
+{
+  "id": "{{businessHourId}}",
+  "dayOfWeek": 1,
+  "openTime": "08:00",
+  "closeTime": "19:00",
+  "isClosed": false
+}
+
+### Delete Business Hour
+DELETE {{baseUrl}}/business-hours/{{businessHourId}}
+
+#######################################
+### BOOKINGS CONTROLLER TESTS
+#######################################
+
+### Create Booking
+POST {{baseUrl}}/bookings
+Content-Type: {{contentType}}
+
+{
+  "serviceId": "{{serviceId}}",
+  "clientId": "{{profileId}}",
+  "providerId": "{{profileId}}",
+  "startTime": "2024-12-15T10:00:00Z",
+  "endTime": "2024-12-15T11:00:00Z"
+}
+
+### Get Booking by ID
+GET {{baseUrl}}/bookings/{{bookingId}}
+
+### Update Booking
+PUT {{baseUrl}}/bookings/{{bookingId}}
+Content-Type: {{contentType}}
+
+{
+  "id": "{{bookingId}}",
+  "startTime": "2024-12-15T14:00:00Z",
+  "endTime": "2024-12-15T15:30:00Z",
+  "status": "confirmed"
+}
+
+### Delete Booking
+DELETE {{baseUrl}}/bookings/{{bookingId}}
+
+#######################################
+### REVIEWS CONTROLLER TESTS
+#######################################
+
+### Create Review
+POST {{baseUrl}}/reviews
+Content-Type: {{contentType}}
+
+{
+  "bookingId": "{{bookingId}}",
+  "rating": 5,
+  "comment": "Excellent service! Very professional and friendly staff."
+}
+
+### Get Review by ID
+GET {{baseUrl}}/reviews/{{reviewId}}
+
+### Update Review
+PUT {{baseUrl}}/reviews/{{reviewId}}
+Content-Type: {{contentType}}
+
+{
+  "id": "{{reviewId}}",
+  "rating": 4,
+  "comment": "Good service, but could be improved in some areas."
+}
+
+### Delete Review
+DELETE {{baseUrl}}/reviews/{{reviewId}}
+
+#######################################
+### COMPLETE WORKFLOW TEST SCENARIO
+#######################################
+
+### 1. Create a Provider Profile
+POST {{baseUrl}}/profiles
+Content-Type: {{contentType}}
+
+{
+  "email": "provider@salon.com",
+  "userType": "provider"
+}
+
+###
+
+### 2. Create a Client Profile
+POST {{baseUrl}}/profiles
+Content-Type: {{contentType}}
+
+{
+  "email": "client@example.com",
+  "userType": "client"
+}
+
+###
+
+### 3. Create a Business (use provider ID from step 1)
+POST {{baseUrl}}/businesses
+Content-Type: {{contentType}}
+
+{
+  "providerId": "REPLACE_WITH_PROVIDER_ID",
+  "businessName": "Elite Beauty Salon",
+  "city": "Los Angeles"
+}
+
+###
+
+### 4. Create Business Hours (use business ID from step 3)
+POST {{baseUrl}}/business-hours
+Content-Type: {{contentType}}
+
+{
+  "businessId": "REPLACE_WITH_BUSINESS_ID",
+  "dayOfWeek": 1,
+  "openTime": "09:00",
+  "closeTime": "17:00",
+  "isClosed": false
+}
+
+###
+
+### 5. Create a Service (use business ID from step 3)
+POST {{baseUrl}}/services
+Content-Type: {{contentType}}
+
+{
+  "businessId": "REPLACE_WITH_BUSINESS_ID",
+  "name": "Deluxe Facial Treatment",
+  "price": 89.99,
+  "durationMinutes": 75
+}
+
+###
+
+### 6. Create a Booking (use service, client, and provider IDs)
+POST {{baseUrl}}/bookings
+Content-Type: {{contentType}}
+
+{
+  "serviceId": "REPLACE_WITH_SERVICE_ID",
+  "clientId": "REPLACE_WITH_CLIENT_ID",
+  "providerId": "REPLACE_WITH_PROVIDER_ID",
+  "startTime": "2024-12-20T14:00:00Z",
+  "endTime": "2024-12-20T15:15:00Z"
+}
+
+###
+
+### 7. Create a Review (use booking ID from step 6)
+POST {{baseUrl}}/reviews
+Content-Type: {{contentType}}
+
+{
+  "bookingId": "REPLACE_WITH_BOOKING_ID",
+  "rating": 5,
+  "comment": "Amazing facial treatment! The staff was very professional and the results were fantastic. Highly recommended!"
+}
+
+#######################################
+### ERROR TESTING SCENARIOS
+#######################################
+
+### Test 404 - Get Non-existent Profile
+GET {{baseUrl}}/profiles/non-existent-id
+
+###
+
+### Test 400 - Invalid ID Mismatch in Update
+PUT {{baseUrl}}/profiles/wrong-id
+Content-Type: {{contentType}}
+
+{
+  "id": "different-id",
+  "email": "test@example.com",
+  "userType": "client"
+}
+
+###
+
+### Test 404 - Delete Non-existent Business
+DELETE {{baseUrl}}/businesses/non-existent-business
+
+###
+
+### Test Invalid Data - Missing Required Fields
+POST {{baseUrl}}/services
+Content-Type: {{contentType}}
+
+{
+  "businessId": "",
+  "name": "",
+  "price": -10,
+  "durationMinutes": 0
+}
