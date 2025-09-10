@@ -29,7 +29,7 @@ A modern appointment booking system built with .NET 8 and AWS Lambda, designed f
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/bookspot.git
+git clone https://github.com/solifas/bookspot.git
 cd bookspot
 ```
 
