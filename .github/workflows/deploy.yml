@@ -1,0 +1,66 @@
+name: Deploy to AWS
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Install Lambda tools
+        run: dotnet tool install -g Amazon.Lambda.Tools
+
+      - name: Deploy Lambda function
+        run: |
+          cd BookSpot.API
+          dotnet lambda deploy-function BookSpotAPI \
+            --configuration Release \
+            --framework net8.0 \
+            --function-role ${{ secrets.LAMBDA_EXECUTION_ROLE }} \
+            --environment-variables "Environment=${{ github.event.inputs.environment || 'production' }}"
+
+      - name: Update function configuration
+        run: |
+          aws lambda update-function-configuration \
+            --function-name BookSpotAPI \
+            --timeout 30 \
+            --memory-size 512 \
+            --environment Variables="{Environment=${{ github.event.inputs.environment || 'production' }}}"
+
+      - name: Create or update API Gateway (if needed)
+        run: |
+          echo "API Gateway setup would go here"
+          echo "Consider using AWS SAM or CDK for infrastructure as code"
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against deployed API..."
+          # Add your smoke test commands here
+          # curl -f https://your-api-gateway-url/health || exit 1

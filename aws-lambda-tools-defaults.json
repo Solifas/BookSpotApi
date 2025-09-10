@@ -4,5 +4,5 @@
   "function-name": "bookspot-api",
   "framework": "net8.0",
   "function-runtime": "dotnet8",
-  "function-handler": "BookSpot.API"
+  "function-handler": "BookSpot.Function"
 }

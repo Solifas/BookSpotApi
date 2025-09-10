@@ -15,5 +15,8 @@ public class Profile
     public string UserType { get; set; } = string.Empty;
 
     [DynamoDBProperty]
+    public string PasswordHash { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
     public DateTime CreatedAt { get; set; }
 }

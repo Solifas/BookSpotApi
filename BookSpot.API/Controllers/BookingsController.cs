@@ -4,7 +4,7 @@ using BookSpot.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
-namespace BookSpot.Function.Controllers;
+namespace BookSpot.API.Controllers;
 
 [ApiController]
 [Route("bookings")]

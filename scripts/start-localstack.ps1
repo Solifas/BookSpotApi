@@ -22,7 +22,8 @@ Start-Sleep -Seconds 10
 # Check if LocalStack is healthy
 $maxAttempts = 30
 $attempt = 0
-do {
+
+while ($attempt -lt $maxAttempts) {
     try {
         $response = Invoke-RestMethod -Uri "http://localhost:4566/_localstack/health" -Method Get -TimeoutSec 5
         if ($response.services.dynamodb -eq "available") {
@@ -35,14 +36,14 @@ do {
     }
     
     $attempt++
-    if ($attempt -ge $maxAttempts) {
-        Write-Host "✗ LocalStack failed to start properly" -ForegroundColor Red
-        exit 1
-    }
-    
     Write-Host "Waiting for LocalStack... ($attempt/$maxAttempts)" -ForegroundColor Yellow
     Start-Sleep -Seconds 2
-} while ($true)
+}
+
+if ($attempt -eq $maxAttempts) {
+    Write-Host "✗ LocalStack failed to start properly" -ForegroundColor Red
+    exit 1
+}
 
 # List DynamoDB tables to verify setup
 Write-Host "Verifying DynamoDB tables..." -ForegroundColor Yellow
