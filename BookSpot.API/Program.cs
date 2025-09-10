@@ -1,11 +1,11 @@
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.Lambda.AspNetCoreServer.Hosting;
+using BookSpot.Application;
 using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Infrastructure.Repositories.DynamoDb;
 using BookSpot.Infrastructure.Services;
-using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -88,7 +88,8 @@ builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IClaimsService, ClaimsService>();
 
-builder.Services.AddMediatR(typeof(BookSpot.Application.Features.Bookings.Commands.CreateBookingCommand).Assembly);
+// Add Application layer services (MediatR, FluentValidation, Behaviors)
+builder.Services.AddApplication();
 
 var app = builder.Build();
 
