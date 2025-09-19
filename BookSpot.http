@@ -1,41 +1,472 @@
-### Authentication Examples
-
-### Variables for testing
+### BookSpot API Testing
+### Base URL and Variables
 @baseUrl = http://localhost:5000
 @token = 
+@userId = 
+@businessId = 
+@serviceId = 
+@bookingId = 
+@reviewId = 
+@businessHourId = 
 
-### Register a new user
+###############################################################################
+### AUTHENTICATION CONTROLLER (/auth)
+###############################################################################
+
+### Register a new client
 POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
 {
-  "email": "test@example.com",
-  "password": "password123",
+  "email": "client@example.com",
+  "fullName": "John Doe",
+  "contactNumber": "+1 (555) 123-4567",
+  "password": "SecurePass123!",
   "userType": "client"
 }
 
-### Login with existing user
+### Register a new provider
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "provider@example.com",
+  "fullName": "Jane Smith",
+  "contactNumber": "+1 (555) 987-6543",
+  "password": "ProviderPass123!",
+  "userType": "provider"
+}
+
+### Login with client credentials
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "test@example.com",
-  "password": "password123"
+  "email": "client@example.com",
+  "password": "SecurePass123!"
 }
+
+### Login with provider credentials
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "provider@example.com",
+  "password": "ProviderPass123!"
+}
+
+###############################################################################
+### PROFILES CONTROLLER (/profiles)
+###############################################################################
 
 ### Get current user profile (requires authentication)
 GET {{baseUrl}}/profiles/me
 Authorization: Bearer {{token}}
 
-### Get specific profile (requires authentication)
-GET {{baseUrl}}/profiles/test-profile-123
+### Get specific profile by ID (requires authentication)
+GET {{baseUrl}}/profiles/{{userId}}
 Authorization: Bearer {{token}}
 
-### Create a new profile (old endpoint - still works)
+### Create a new profile (direct creation - not recommended, use auth/register instead)
 POST {{baseUrl}}/profiles
 Content-Type: application/json
 
 {
-  "email": "oldway@example.com",
-  "userType": "provider"
+  "email": "direct@example.com",
+  "userType": "client"
 }
+
+### Update profile
+PUT {{baseUrl}}/profiles/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "{{userId}}",
+  "email": "updated@example.com",
+  "userType": "client"
+}
+
+### Delete profile
+DELETE {{baseUrl}}/profiles/{{userId}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+### BUSINESSES CONTROLLER (/businesses)
+###############################################################################
+
+### Create a new business (providers only)
+POST {{baseUrl}}/businesses
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "businessName": "Sunny Day Spa",
+  "description": "A full-service spa offering relaxation and wellness treatments in a serene environment",
+  "address": "123 Main Street, Suite 100, Downtown District",
+  "phone": "+1 (555) 123-4567",
+  "email": "info@sunnydayspa.com",
+  "city": "New York",
+  "website": "https://www.sunnydayspa.com",
+  "imageUrl": "https://example.com/spa-exterior.jpg",
+  "isActive": true
+}
+
+### Get business by ID
+GET {{baseUrl}}/businesses/{{businessId}}
+
+### Get all services offered by a business
+GET {{baseUrl}}/businesses/{{businessId}}/services
+
+### Update business (business owner only)
+PUT {{baseUrl}}/businesses/{{businessId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "{{businessId}}",
+  "businessName": "Sunny Day Spa & Wellness",
+  "description": "Premium spa and wellness center offering therapeutic and relaxation services",
+  "address": "123 Main Street, Suite 100, Downtown District",
+  "phone": "+1 (555) 123-4567",
+  "email": "info@sunnydayspa.com",
+  "city": "New York",
+  "website": "https://www.sunnydayspa.com",
+  "imageUrl": "https://example.com/spa-exterior-updated.jpg",
+  "isActive": true
+}
+
+### Delete business (business owner only)
+DELETE {{baseUrl}}/businesses/{{businessId}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+### SERVICES CONTROLLER (/services)
+###############################################################################
+
+### Get all services
+GET {{baseUrl}}/services
+
+### Search services with filters
+GET {{baseUrl}}/services/search?name=massage&city=new%20york&minPrice=50&maxPrice=150&page=1&pageSize=10
+
+### Search services by category
+GET {{baseUrl}}/services/search?category=massage&minDuration=60&maxDuration=120
+
+### Search services with pagination
+GET {{baseUrl}}/services/search?page=2&pageSize=5
+
+### Get service by ID
+GET {{baseUrl}}/services/{{serviceId}}
+
+### Create a new service (business owners only)
+POST {{baseUrl}}/services
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "businessId": "{{businessId}}",
+  "name": "Deep Tissue Massage",
+  "description": "A therapeutic massage targeting deep layers of muscle and connective tissue to relieve chronic pain and tension",
+  "category": "Massage Therapy",
+  "price": 85.50,
+  "durationMinutes": 90,
+  "imageUrl": "https://example.com/massage-image.jpg",
+  "tags": ["therapeutic", "deep tissue", "relaxation", "pain relief"],
+  "isActive": true
+}
+
+### Create another service example
+POST {{baseUrl}}/services
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "businessId": "{{businessId}}",
+  "name": "Swedish Massage",
+  "description": "A gentle, relaxing massage using long strokes and kneading techniques",
+  "category": "Massage Therapy",
+  "price": 75.00,
+  "durationMinutes": 60,
+  "imageUrl": "https://example.com/swedish-massage.jpg",
+  "tags": ["relaxation", "swedish", "gentle", "stress relief"],
+  "isActive": true
+}
+
+### Update service (service owner only)
+PUT {{baseUrl}}/services/{{serviceId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "{{serviceId}}",
+  "name": "Premium Deep Tissue Massage",
+  "description": "Enhanced therapeutic massage with aromatherapy and hot stones",
+  "category": "Premium Massage",
+  "price": 120.00,
+  "durationMinutes": 120,
+  "imageUrl": "https://example.com/premium-massage.jpg",
+  "tags": ["premium", "therapeutic", "aromatherapy", "hot stones"],
+  "isActive": true
+}
+
+### Delete service (service owner only)
+DELETE {{baseUrl}}/services/{{serviceId}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+### BUSINESS HOURS CONTROLLER (/business-hours)
+###############################################################################
+
+### Create business hours (business owners only)
+POST {{baseUrl}}/business-hours
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "businessId": "{{businessId}}",
+  "dayOfWeek": 1,
+  "openTime": "09:00",
+  "closeTime": "17:00",
+  "isClosed": false
+}
+
+### Create weekend hours (closed)
+POST {{baseUrl}}/business-hours
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "businessId": "{{businessId}}",
+  "dayOfWeek": 0,
+  "openTime": "",
+  "closeTime": "",
+  "isClosed": true
+}
+
+### Get business hours by ID
+GET {{baseUrl}}/business-hours/{{businessHourId}}
+
+### Update business hours (business owner only)
+PUT {{baseUrl}}/business-hours/{{businessHourId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "{{businessHourId}}",
+  "businessId": "{{businessId}}",
+  "dayOfWeek": 1,
+  "openTime": "08:00",
+  "closeTime": "18:00",
+  "isClosed": false
+}
+
+### Delete business hours (business owner only)
+DELETE {{baseUrl}}/business-hours/{{businessHourId}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+### BOOKINGS CONTROLLER (/bookings)
+###############################################################################
+
+### Create a booking (clients only)
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "serviceId": "{{serviceId}}",
+  "startTime": "2024-01-15T14:00:00Z",
+  "endTime": "2024-01-15T15:30:00Z"
+}
+
+### Create a booking with auto-calculated end time
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "serviceId": "{{serviceId}}",
+  "startTime": "2024-01-16T10:00:00Z"
+}
+
+### Get booking by ID
+GET {{baseUrl}}/bookings/{{bookingId}}
+
+### Update booking
+PUT {{baseUrl}}/bookings/{{bookingId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "{{bookingId}}",
+  "startTime": "2024-01-15T15:00:00Z",
+  "endTime": "2024-01-15T16:30:00Z",
+  "status": "confirmed"
+}
+
+### Delete booking
+DELETE {{baseUrl}}/bookings/{{bookingId}}
+Authorization: Bearer {{token}}
+
+### Get provider bookings with filters
+GET {{baseUrl}}/bookings/provider/{{userId}}?status=pending&startDate=2024-01-01T00:00:00Z&endDate=2024-12-31T23:59:59Z
+Authorization: Bearer {{token}}
+
+### Get provider bookings - all statuses
+GET {{baseUrl}}/bookings/provider/{{userId}}
+Authorization: Bearer {{token}}
+
+### Get provider bookings - confirmed only
+GET {{baseUrl}}/bookings/provider/{{userId}}?status=confirmed
+Authorization: Bearer {{token}}
+
+###############################################################################
+### REVIEWS CONTROLLER (/reviews)
+###############################################################################
+
+### Create a review
+POST {{baseUrl}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "bookingId": "{{bookingId}}",
+  "rating": 5,
+  "comment": "Excellent service! Very professional and relaxing experience."
+}
+
+### Create another review example
+POST {{baseUrl}}/reviews
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "bookingId": "{{bookingId}}",
+  "rating": 4,
+  "comment": "Good service, would recommend to others."
+}
+
+### Get review by ID
+GET {{baseUrl}}/reviews/{{reviewId}}
+
+### Update review
+PUT {{baseUrl}}/reviews/{{reviewId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "id": "{{reviewId}}",
+  "bookingId": "{{bookingId}}",
+  "rating": 5,
+  "comment": "Updated: Outstanding service! Highly recommend this spa."
+}
+
+### Delete review
+DELETE {{baseUrl}}/reviews/{{reviewId}}
+Authorization: Bearer {{token}}
+
+###############################################################################
+### DASHBOARD CONTROLLER (/dashboard) - Provider Analytics
+###############################################################################
+
+### Get provider dashboard statistics
+GET {{baseUrl}}/dashboard/provider/{{userId}}/stats
+Authorization: Bearer {{token}}
+
+###############################################################################
+### LOCATIONS CONTROLLER (/locations) - Geographic Data
+###############################################################################
+
+### Get all available cities with service information
+GET {{baseUrl}}/locations/cities
+
+###############################################################################
+### TEST CONTROLLER (/test) - For Development/Testing
+###############################################################################
+
+### Test exception handling - Not Found
+GET {{baseUrl}}/test/exception/notfound
+
+### Test exception handling - Validation Error
+GET {{baseUrl}}/test/exception/validation
+
+### Test exception handling - Server Error
+GET {{baseUrl}}/test/exception/server
+
+### Test validation with detailed errors
+GET {{baseUrl}}/test/validation-details
+
+### Test no exception
+GET {{baseUrl}}/test/exception/none
+
+###############################################################################
+### WORKFLOW EXAMPLES
+###############################################################################
+
+### Complete Provider Workflow
+# 1. Register as provider
+# 2. Login to get token
+# 3. Create business
+# 4. Set business hours
+# 5. Create services
+
+### Complete Client Workflow
+# 1. Register as client
+# 2. Login to get token
+# 3. Search for services
+# 4. Create booking
+# 5. Leave review after service
+
+###############################################################################
+### TESTING SCENARIOS
+###############################################################################
+
+### Scenario 1: Provider creates complete business setup
+# POST /auth/register (provider)
+# POST /auth/login
+# POST /businesses
+# POST /business-hours (for each day)
+# POST /services (multiple services)
+
+### Scenario 2: Client books and reviews service
+# POST /auth/register (client)
+# POST /auth/login
+# GET /services/search
+# POST /bookings
+# POST /reviews
+
+### Scenario 3: Business management
+# GET /businesses/{id}/services
+# PUT /services/{id}
+# PUT /businesses/{id}
+
+###############################################################################
+### ERROR TESTING
+###############################################################################
+
+### Test unauthorized access (no token)
+GET {{baseUrl}}/profiles/me
+
+### Test forbidden access (wrong user type)
+POST {{baseUrl}}/businesses
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "businessName": "Test Business",
+  "city": "Test City"
+}
+
+### Test validation errors
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "invalid-email",
+  "password": "123",
+  "userType": "invalid"
+}
+
+### Test not found
+GET {{baseUrl}}/services/non-existent-id

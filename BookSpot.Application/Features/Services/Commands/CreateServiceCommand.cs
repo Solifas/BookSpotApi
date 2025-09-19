@@ -1,12 +1,22 @@
-using BookSpot.Domain.Entities;
 using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Exceptions;
+using BookSpot.Domain.Entities;
 using MediatR;
 
 namespace BookSpot.Application.Features.Services.Commands;
 
-public record CreateServiceCommand(string BusinessId, string Name, decimal Price, int DurationMinutes) : IRequest<Service>;
+public record CreateServiceCommand(
+    string BusinessId,
+    string Name,
+    string Description,
+    string? Category,
+    decimal Price,
+    int DurationMinutes,
+    string? ImageUrl = null,
+    List<string>? Tags = null,
+    bool IsActive = true
+) : IRequest<Service>;
 
 public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Service>
 {
@@ -36,19 +46,10 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
             throw new ValidationException("Only providers can create services.");
         }
 
-        // Validate that the business exists
-        Business business = await _businesses.GetAsync(request.BusinessId) ?? throw new NotFoundException($"Business with ID '{request.BusinessId}' not found.");
-
         // Validate that the current user owns the business
-        if (business.ProviderId != currentUserId)
+        if (request.BusinessId != currentUserId)
         {
             throw new ValidationException("You can only create services for your own businesses.");
-        }
-
-        // Validate that the business is active
-        if (!business.IsActive)
-        {
-            throw new ValidationException($"Business with ID '{request.BusinessId}' is not active and cannot offer new services.");
         }
 
         // Validate service data
@@ -67,8 +68,13 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
             Id = Guid.NewGuid().ToString(),
             BusinessId = request.BusinessId,
             Name = request.Name,
+            Description = request.Description,
+            Category = request.Category,
             Price = request.Price,
             DurationMinutes = request.DurationMinutes,
+            ImageUrl = request.ImageUrl,
+            Tags = request.Tags ?? new List<string>(),
+            IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow
         };
 

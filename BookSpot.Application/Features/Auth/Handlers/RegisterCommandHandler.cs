@@ -5,7 +5,6 @@ using BookSpot.Application.Exceptions;
 using BookSpot.Application.Features.Auth.Commands;
 using BookSpot.Domain.Entities;
 using MediatR;
-using BCrypt.Net;
 
 namespace BookSpot.Application.Features.Auth.Handlers;
 
@@ -43,6 +42,8 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, AuthRespo
         {
             Id = Guid.NewGuid().ToString(),
             Email = request.Email,
+            FullName = request.FullName,
+            ContactNumber = request.ContactNumber,
             UserType = request.UserType,
             PasswordHash = passwordHash,
             CreatedAt = DateTime.UtcNow
@@ -58,6 +59,8 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, AuthRespo
             Token = token,
             UserId = profile.Id,
             Email = profile.Email,
+            FullName = profile.FullName,
+            ContactNumber = profile.ContactNumber,
             UserType = profile.UserType,
             ExpiresAt = DateTime.UtcNow.AddHours(1)
         };

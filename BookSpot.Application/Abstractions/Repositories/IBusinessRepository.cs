@@ -7,4 +7,5 @@ public interface IBusinessRepository
     Task<Business?> GetAsync(string id);
     Task SaveAsync(Business business);
     Task DeleteAsync(string id);
+    Task<IEnumerable<Business>> GetAllAsync();
 }

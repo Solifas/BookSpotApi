@@ -1,12 +1,22 @@
-using BookSpot.Domain.Entities;
 using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Exceptions;
+using BookSpot.Domain.Entities;
 using MediatR;
 
 namespace BookSpot.Application.Features.Businesses.Commands;
 
-public record CreateBusinessCommand(string BusinessName, string City) : IRequest<Business>;
+public record CreateBusinessCommand(
+    string BusinessName,
+    string Description,
+    string Address,
+    string Phone,
+    string Email,
+    string City,
+    string? Website = null,
+    string? ImageUrl = null,
+    bool IsActive = true
+) : IRequest<Business>;
 
 public class CreateBusinessHandler : IRequestHandler<CreateBusinessCommand, Business>
 {
@@ -48,7 +58,14 @@ public class CreateBusinessHandler : IRequestHandler<CreateBusinessCommand, Busi
             Id = Guid.NewGuid().ToString(),
             ProviderId = currentUserId,
             BusinessName = request.BusinessName,
+            Description = request.Description,
+            Address = request.Address,
+            Phone = request.Phone,
+            Email = request.Email,
             City = request.City,
+            Website = request.Website,
+            ImageUrl = request.ImageUrl,
+            IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow
         };
 

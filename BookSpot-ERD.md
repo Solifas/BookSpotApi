@@ -9,6 +9,8 @@ erDiagram
     Profile {
         string Id PK
         string Email
+        string FullName
+        string ContactNumber "nullable"
         string UserType
         string PasswordHash
         datetime CreatedAt
@@ -74,8 +76,10 @@ erDiagram
 ### Profile
 - **Purpose**: Represents users in the system (both clients and service providers)
 - **Key Fields**: 
+  - `Email`: Used for authentication and login (required, unique)
+  - `FullName`: User's complete name (required)
+  - `ContactNumber`: Phone number for contact (optional)
   - `UserType`: Distinguishes between clients and providers
-  - `Email`: Used for authentication and login
   - `PasswordHash`: Secure password storage using BCrypt
 
 ### Business

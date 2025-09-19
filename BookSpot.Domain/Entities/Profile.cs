@@ -12,6 +12,12 @@ public class Profile
     public string Email { get; set; } = string.Empty;
 
     [DynamoDBProperty]
+    public string FullName { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
+    public string? ContactNumber { get; set; }
+
+    [DynamoDBProperty]
     public string UserType { get; set; } = string.Empty;
 
     [DynamoDBProperty]

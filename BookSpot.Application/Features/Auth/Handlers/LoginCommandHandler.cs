@@ -43,6 +43,8 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, AuthResponse>
             Token = token,
             UserId = profile.Id,
             Email = profile.Email,
+            FullName = profile.FullName,
+            ContactNumber = profile.ContactNumber,
             UserType = profile.UserType,
             ExpiresAt = DateTime.UtcNow.AddHours(1) // Match with JWT expiration
         };

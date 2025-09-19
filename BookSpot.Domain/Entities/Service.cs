@@ -22,4 +22,15 @@ public class Service
 
     [DynamoDBProperty]
     public DateTime CreatedAt { get; set; }
+
+    [DynamoDBProperty]
+    public string Description { get; set; } = string.Empty;
+    [DynamoDBProperty]
+    public string? Category { get; set; } = string.Empty;
+    [DynamoDBProperty]
+    public string? ImageUrl { get; set; }
+    [DynamoDBProperty]
+    public List<string> Tags { get; set; } = [];
+    [DynamoDBProperty]
+    public bool IsActive { get; set; } = true;
 }

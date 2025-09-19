@@ -3,4 +3,4 @@ using MediatR;
 
 namespace BookSpot.Application.Features.Auth.Commands;
 
-public record RegisterCommand(string Email, string Password, string UserType) : IRequest<AuthResponse>;
+public record RegisterCommand(string Email, string FullName, string? ContactNumber, string Password, string UserType) : IRequest<AuthResponse>;

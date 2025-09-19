@@ -29,4 +29,15 @@ public class BookingRepository : IBookingRepository
         return allBookings.Where(booking => 
             (startTime < booking.EndTime && endTime > booking.StartTime));
     }
+
+    public async Task<IEnumerable<Booking>> GetBookingsByProviderAsync(string providerId)
+    {
+        var scanConditions = new List<ScanCondition>
+        {
+            new("ProviderId", ScanOperator.Equal, providerId)
+        };
+
+        var search = _context.ScanAsync<Booking>(scanConditions);
+        return await search.GetRemainingAsync();
+    }
 }
