@@ -32,5 +32,7 @@ public class Service
     [DynamoDBProperty]
     public List<string> Tags { get; set; } = [];
     [DynamoDBProperty]
+    public string? Location { get; set; }
+    [DynamoDBProperty]
     public bool IsActive { get; set; } = true;
 }

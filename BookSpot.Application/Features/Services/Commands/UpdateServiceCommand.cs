@@ -10,6 +10,7 @@ public record UpdateServiceCommand(
     string Id,
     string Name,
     string Description,
+    string? Location,
     string? Category,
     decimal Price,
     int DurationMinutes,
@@ -54,6 +55,7 @@ public class UpdateServiceHandler : IRequestHandler<UpdateServiceCommand, Servic
         existing.Description = request.Description;
         existing.Category = request.Category;
         existing.Price = request.Price;
+        existing.Location = request.Location;
         existing.DurationMinutes = request.DurationMinutes;
         existing.ImageUrl = request.ImageUrl;
         existing.Tags = request.Tags ?? new List<string>();
