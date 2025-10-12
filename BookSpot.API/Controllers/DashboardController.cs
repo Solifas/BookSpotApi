@@ -1,8 +1,10 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.DTOs.Dashboard;
 using BookSpot.Application.Features.Dashboard.Queries;
+using BookSpot.Application.Exceptions;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -94,5 +96,64 @@ public class DashboardController : ControllerBase
         var query = new GetProviderInsightsQuery(providerId, startDate, endDate);
         var insights = await _mediator.Send(query);
         return Ok(insights);
+    }
+
+    /// <summary>
+    /// Get dashboard client records for the authenticated provider.
+    /// </summary>
+    /// <returns>List of dashboard clients.</returns>
+    /// <response code="200">Clients retrieved successfully</response>
+    /// <response code="400">Provider is not recognized as a service provider</response>
+    /// <response code="401">Authentication required</response>
+    /// <response code="403">Only providers can access client records</response>
+    /// <response code="404">Provider profile not found</response>
+    /// <response code="500">Unexpected server error</response>
+    [HttpGet("clients")]
+    [Authorize]
+    [ProducesResponseType(typeof(IEnumerable<DashboardClientDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<IEnumerable<DashboardClientDto>>> GetClients()
+    {
+        if (!_claimsService.IsAuthenticated())
+        {
+            return Unauthorized(new { error = "Unauthorized", message = "Authentication token is missing or invalid." });
+        }
+
+        var providerId = _claimsService.GetCurrentUserId();
+        if (string.IsNullOrEmpty(providerId))
+        {
+            return Unauthorized(new { error = "Unauthorized", message = "Authentication token is missing or invalid." });
+        }
+
+        if (!_claimsService.IsProvider())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Forbidden", message = "Only providers can access dashboard clients." });
+        }
+
+        try
+        {
+            var clients = await _mediator.Send(new GetDashboardClientsQuery(providerId));
+            return Ok(clients);
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new { error = "NotFound", message = "Provider profile could not be found." });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { error = "ValidationError", message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = "InternalServerError",
+                message = "An unexpected error occurred while retrieving dashboard clients."
+            });
+        }
     }
 }
