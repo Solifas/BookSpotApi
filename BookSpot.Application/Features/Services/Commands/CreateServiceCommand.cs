@@ -66,6 +66,7 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
         var service = new Service
         {
             Id = Guid.NewGuid().ToString(),
+            // ProviderId = currentUserId,
             BusinessId = request.BusinessId,
             Name = request.Name,
             Description = request.Description,

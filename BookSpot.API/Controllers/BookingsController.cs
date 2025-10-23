@@ -47,7 +47,7 @@ public class BookingsController : ControllerBase
     /// <response code="404">Provider not found</response>
     /// <response code="400">Invalid provider or parameters</response>
     [HttpGet("provider/{providerId}")]
-    [Authorize]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(typeof(IEnumerable<BookingWithDetails>), 200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(400)]
@@ -63,6 +63,37 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
+    /// Get all bookings for a specific client (authenticated client can only view their own bookings)
+    /// </summary>
+    /// <param name="clientId">Client's user ID</param>
+    /// <param name="status">Filter by booking status (pending, confirmed, completed, cancelled)</param>
+    /// <param name="startDate">Filter from date (ISO format)</param>
+    /// <param name="endDate">Filter until date (ISO format)</param>
+    /// <returns>Array of BookingWithDetails with full service, provider, and business info</returns>
+    /// <response code="200">Bookings retrieved successfully</response>
+    /// <response code="400">Invalid client ID or access denied</response>
+    /// <response code="401">Unauthorized - JWT token required</response>
+    /// <response code="403">Forbidden - Can only view own bookings</response>
+    /// <response code="404">Client not found</response>
+    [HttpGet("client/{clientId}")]
+    [Authorize(Policy = "ClientOnly")]
+    [ProducesResponseType(typeof(IEnumerable<BookingWithDetails>), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(401)]
+    [ProducesResponseType(403)]
+    [ProducesResponseType(404)]
+    public async Task<ActionResult<IEnumerable<BookingWithDetails>>> GetClientBookings(
+        string clientId,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        var query = new GetClientBookingsQuery(clientId, status, startDate, endDate);
+        var bookings = await _mediator.Send(query);
+        return Ok(bookings);
+    }
+
+    /// <summary>
     /// Create a new booking
     /// </summary>
     /// <param name="command">Booking creation details</param>
@@ -72,7 +103,7 @@ public class BookingsController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only clients can create bookings</response>
     [HttpPost]
-    [Authorize]
+    [Authorize(Policy = "ClientOrProvider")]
     [ProducesResponseType(typeof(Booking), 201)]
     [ProducesResponseType(400)]
     [ProducesResponseType(401)]
@@ -94,7 +125,7 @@ public class BookingsController : ControllerBase
     /// <response code="404">Booking not found</response>
     /// <response code="401">Unauthorized - JWT token required</response>
     [HttpPut("{id}")]
-    [Authorize]
+    [Authorize(Policy = "ClientOrProvider")]
     [ProducesResponseType(typeof(Booking), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
@@ -115,7 +146,7 @@ public class BookingsController : ControllerBase
     /// <response code="404">Booking not found</response>
     /// <response code="401">Unauthorized - JWT token required</response>
     [HttpDelete("{id}")]
-    [Authorize]
+    [Authorize(Policy = "ClientOrProvider")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]

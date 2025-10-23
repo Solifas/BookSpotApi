@@ -1,5 +1,3 @@
-using System;
-
 namespace BookSpot.Application.DTOs.Dashboard;
 
 public class DashboardClientDto

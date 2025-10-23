@@ -1,7 +1,7 @@
-using BookSpot.Domain.Entities;
 using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Exceptions;
+using BookSpot.Domain.Entities;
 using MediatR;
 
 namespace BookSpot.Application.Features.Bookings.Commands;
@@ -39,18 +39,6 @@ public class CreateBookingHandler : IRequestHandler<CreateBookingCommand, Bookin
             throw new ValidationException("User must be authenticated to create a booking.");
         }
 
-        // Validate that the current user exists and is a client
-        var currentUser = await _profiles.GetAsync(currentUserId);
-        if (currentUser == null)
-        {
-            throw new NotFoundException("Current user profile not found.");
-        }
-
-        if (currentUser.UserType != "client")
-        {
-            throw new ValidationException("Only clients can create bookings.");
-        }
-
         // Validate that the service exists
         var service = await _services.GetAsync(request.ServiceId);
         if (service == null)
@@ -58,23 +46,14 @@ public class CreateBookingHandler : IRequestHandler<CreateBookingCommand, Bookin
             throw new NotFoundException($"Service with ID '{request.ServiceId}' not found.");
         }
 
-        // Validate that the business associated with the service exists and is active
-        var business = await _businesses.GetAsync(service.BusinessId);
-        if (business == null)
+        if (service.BusinessId == currentUserId)
         {
-            throw new NotFoundException($"Business associated with service '{request.ServiceId}' not found.");
+            throw new BadRequestException("You cannot book your own service");
         }
 
-        if (!business.IsActive)
+        if (!service.IsActive)
         {
             throw new ValidationException($"Business associated with service '{request.ServiceId}' is not active.");
-        }
-
-        // Get the provider from the business
-        var provider = await _profiles.GetAsync(business.ProviderId);
-        if (provider == null)
-        {
-            throw new NotFoundException($"Provider profile not found for business.");
         }
 
         // Calculate end time based on service duration
@@ -92,16 +71,16 @@ public class CreateBookingHandler : IRequestHandler<CreateBookingCommand, Bookin
         }
 
         // Validate that the provided end time matches the calculated end time (if provided)
-        if (request.EndTime != default && Math.Abs((request.EndTime - endTime).TotalMinutes) > 1)
-        {
-            throw new ValidationException($"End time must match service duration. Expected: {endTime:yyyy-MM-dd HH:mm}, Provided: {request.EndTime:yyyy-MM-dd HH:mm}");
-        }
+        // if (request.EndTime != default && Math.Abs((request.EndTime - endTime).TotalMinutes) > 1)
+        // {
+        //     throw new ValidationException($"End time must match service duration. Expected: {endTime:yyyy-MM-dd HH:mm}, Provided: {request.EndTime:yyyy-MM-dd HH:mm}");
+        // }
 
         // Use calculated end time
         var finalEndTime = request.EndTime != default ? request.EndTime : endTime;
 
         // Check for booking conflicts
-        var conflictingBookings = await _bookings.GetConflictingBookingsAsync(business.ProviderId, request.StartTime, finalEndTime);
+        var conflictingBookings = await _bookings.GetConflictingBookingsAsync(service.BusinessId, request.StartTime, finalEndTime);
         if (conflictingBookings.Any())
         {
             throw new ValidationException($"Provider already has a booking during the requested time slot.");
@@ -112,7 +91,7 @@ public class CreateBookingHandler : IRequestHandler<CreateBookingCommand, Bookin
             Id = Guid.NewGuid().ToString(),
             ServiceId = request.ServiceId,
             ClientId = currentUserId,
-            ProviderId = business.ProviderId,
+            ProviderId = service.BusinessId,
             StartTime = request.StartTime,
             EndTime = finalEndTime,
             Status = "pending",

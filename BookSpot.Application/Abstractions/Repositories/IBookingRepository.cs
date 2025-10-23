@@ -9,4 +9,5 @@ public interface IBookingRepository
     Task DeleteAsync(string id);
     Task<IEnumerable<Booking>> GetConflictingBookingsAsync(string providerId, DateTime startTime, DateTime endTime);
     Task<IEnumerable<Booking>> GetBookingsByProviderAsync(string providerId);
+    Task<IEnumerable<Booking>> GetBookingsByClientAsync(string clientId);
 }

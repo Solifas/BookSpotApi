@@ -81,7 +81,20 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Policy for clients only
+    options.AddPolicy("ClientOnly", policy =>
+        policy.RequireClaim("user_type", "client"));
+
+    // Policy for providers only
+    options.AddPolicy("ProviderOnly", policy =>
+        policy.RequireClaim("user_type", "provider"));
+
+    // Policy for both clients and providers
+    options.AddPolicy("ClientOrProvider", policy =>
+        policy.RequireClaim("user_type", "client", "provider"));
+});
 
 // Add Swagger services
 builder.Services.AddEndpointsApiExplorer();

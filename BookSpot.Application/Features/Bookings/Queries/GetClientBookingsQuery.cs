@@ -1,55 +1,72 @@
 using BookSpot.Application.Abstractions.Repositories;
+using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.DTOs.Bookings;
 using BookSpot.Application.Exceptions;
 using MediatR;
 
 namespace BookSpot.Application.Features.Bookings.Queries;
 
-public record GetProviderBookingsQuery(
-    string ProviderId,
+public record GetClientBookingsQuery(
+    string ClientId,
     string? Status = null,
     DateTime? StartDate = null,
     DateTime? EndDate = null
 ) : IRequest<IEnumerable<BookingWithDetails>>;
 
-public class GetProviderBookingsHandler : IRequestHandler<GetProviderBookingsQuery, IEnumerable<BookingWithDetails>>
+public class GetClientBookingsHandler : IRequestHandler<GetClientBookingsQuery, IEnumerable<BookingWithDetails>>
 {
     private readonly IBookingRepository _bookings;
     private readonly IServiceRepository _services;
     private readonly IProfileRepository _profiles;
     private readonly IBusinessRepository _businesses;
+    private readonly IClaimsService _claimsService;
 
-    public GetProviderBookingsHandler(
+    public GetClientBookingsHandler(
         IBookingRepository bookings,
         IServiceRepository services,
         IProfileRepository profiles,
-        IBusinessRepository businesses)
+        IBusinessRepository businesses,
+        IClaimsService claimsService)
     {
         _bookings = bookings;
         _services = services;
         _profiles = profiles;
         _businesses = businesses;
+        _claimsService = claimsService;
     }
 
-    public async Task<IEnumerable<BookingWithDetails>> Handle(GetProviderBookingsQuery request, CancellationToken cancellationToken)
+    public async Task<IEnumerable<BookingWithDetails>> Handle(GetClientBookingsQuery request, CancellationToken cancellationToken)
     {
-        // Verify provider exists
-        var provider = await _profiles.GetAsync(request.ProviderId);
-        if (provider == null)
+        // Get current user ID from claims
+        var currentUserId = _claimsService.GetCurrentUserId();
+        if (string.IsNullOrEmpty(currentUserId))
         {
-            throw new NotFoundException($"Provider with ID '{request.ProviderId}' not found.");
+            throw new ValidationException("User not authenticated.");
         }
 
-        if (provider.UserType != "provider")
+        // Verify that the authenticated user is requesting their own bookings
+        if (currentUserId != request.ClientId)
         {
-            throw new ValidationException($"User with ID '{request.ProviderId}' is not a provider.");
+            throw new ValidationException("Access denied. You can only view your own bookings.");
         }
 
-        // Get all bookings for this provider
-        var allBookings = await _bookings.GetBookingsByProviderAsync(request.ProviderId);
+        // Verify client exists and is actually a client
+        var client = await _profiles.GetAsync(request.ClientId);
+        if (client == null)
+        {
+            throw new NotFoundException($"Client with ID '{request.ClientId}' not found.");
+        }
+
+        if (client.UserType != "client")
+        {
+            throw new ValidationException($"User with ID '{request.ClientId}' is not a client.");
+        }
+
+        // Get all bookings for this client
+        var clientBookings = await _bookings.GetBookingsByClientAsync(request.ClientId);
 
         // Apply filters
-        var filteredBookings = allBookings.AsEnumerable();
+        var filteredBookings = clientBookings.AsEnumerable();
 
         if (!string.IsNullOrEmpty(request.Status))
         {
@@ -73,10 +90,9 @@ public class GetProviderBookingsHandler : IRequestHandler<GetProviderBookingsQue
         foreach (var booking in filteredBookings)
         {
             var service = await _services.GetAsync(booking.ServiceId);
-            var client = await _profiles.GetAsync(booking.ClientId);
-            // var business = service != null ? await _businesses.GetAsync(service.BusinessId) : null;
+            var provider = await _profiles.GetAsync(service.BusinessId);
 
-            if (service != null && client != null)
+            if (service is not null && provider is not null)
             {
                 bookingsWithDetails.Add(new BookingWithDetails
                 {

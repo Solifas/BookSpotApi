@@ -40,4 +40,15 @@ public class BookingRepository : IBookingRepository
         var search = _context.ScanAsync<Booking>(scanConditions);
         return await search.GetRemainingAsync();
     }
+
+    public async Task<IEnumerable<Booking>> GetBookingsByClientAsync(string clientId)
+    {
+        var scanConditions = new List<ScanCondition>
+        {
+            new("ClientId", ScanOperator.Equal, clientId)
+        };
+
+        var search = _context.ScanAsync<Booking>(scanConditions);
+        return await search.GetRemainingAsync();
+    }
 }

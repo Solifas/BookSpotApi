@@ -38,6 +38,7 @@ public class ProfilesController : ControllerBase
 
     [HttpGet("me")]
     [Authorize]
+    [Authorize(Policy = "ClientOrProvider")]
     public async Task<ActionResult<Profile>> GetCurrentUser()
     {
         var currentUserId = _claimsService.GetCurrentUserId();

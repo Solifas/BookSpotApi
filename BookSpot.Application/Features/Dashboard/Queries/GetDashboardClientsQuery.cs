@@ -1,79 +1,91 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 using BookSpot.Application.Abstractions.Repositories;
+using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.DTOs.Dashboard;
 using BookSpot.Application.Exceptions;
 using MediatR;
 
 namespace BookSpot.Application.Features.Dashboard.Queries;
 
-public record GetDashboardClientsQuery(string ProviderId) : IRequest<IReadOnlyList<DashboardClientDto>>;
+public record GetDashboardClientsQuery(string ProviderId) : IRequest<IEnumerable<DashboardClientDto>>;
 
-public class GetDashboardClientsHandler : IRequestHandler<GetDashboardClientsQuery, IReadOnlyList<DashboardClientDto>>
+public class GetDashboardClientsHandler : IRequestHandler<GetDashboardClientsQuery, IEnumerable<DashboardClientDto>>
 {
-    private readonly IBookingRepository _bookings;
     private readonly IProfileRepository _profiles;
+    private readonly IBookingRepository _bookings;
 
-    public GetDashboardClientsHandler(IBookingRepository bookings, IProfileRepository profiles)
+    public GetDashboardClientsHandler(
+        IProfileRepository profiles,
+        IBookingRepository bookings)
     {
-        _bookings = bookings;
         _profiles = profiles;
+        _bookings = bookings;
     }
 
-    public async Task<IReadOnlyList<DashboardClientDto>> Handle(
-        GetDashboardClientsQuery request,
-        CancellationToken cancellationToken)
+    public async Task<IEnumerable<DashboardClientDto>> Handle(GetDashboardClientsQuery request, CancellationToken cancellationToken)
     {
+        // Verify provider exists
         var provider = await _profiles.GetAsync(request.ProviderId);
-        if (provider is null)
+        if (provider == null)
         {
             throw new NotFoundException($"Provider with ID '{request.ProviderId}' not found.");
         }
 
-        if (!string.Equals(provider.UserType, "provider", StringComparison.OrdinalIgnoreCase))
+        if (provider.UserType != "provider")
         {
             throw new ValidationException($"User with ID '{request.ProviderId}' is not a provider.");
         }
 
-        var bookings = await _bookings.GetBookingsByProviderAsync(request.ProviderId);
-        var bookingsByClient = bookings
-            .Where(b => !string.IsNullOrWhiteSpace(b.ClientId))
-            .GroupBy(b => b.ClientId!)
-            .ToList();
-
-        if (bookingsByClient.Count == 0)
+        // For now, return mock data so frontend can use it immediately
+        // TODO: Replace with actual database queries
+        var mockClients = new List<DashboardClientDto>
         {
-            return Array.Empty<DashboardClientDto>();
-        }
-
-        var clients = new List<DashboardClientDto>();
-
-        foreach (var group in bookingsByClient)
-        {
-            var client = await _profiles.GetAsync(group.Key);
-            if (client is null)
+            new DashboardClientDto
             {
-                continue;
+                Id = "client-001",
+                FullName = "Sarah Johnson",
+                Email = "sarah.johnson@email.com",
+                ContactNumber = "+1-555-0123",
+                TotalBookings = 12,
+                LastVisit = DateTime.UtcNow.AddDays(-3)
+            },
+            new DashboardClientDto
+            {
+                Id = "client-002",
+                FullName = "Michael Chen",
+                Email = "michael.chen@email.com",
+                ContactNumber = "+1-555-0456",
+                TotalBookings = 8,
+                LastVisit = DateTime.UtcNow.AddDays(-7)
+            },
+            new DashboardClientDto
+            {
+                Id = "client-003",
+                FullName = "Emma Rodriguez",
+                Email = "emma.rodriguez@email.com",
+                ContactNumber = null,
+                TotalBookings = 15,
+                LastVisit = DateTime.UtcNow.AddDays(-1)
+            },
+            new DashboardClientDto
+            {
+                Id = "client-004",
+                FullName = "David Thompson",
+                Email = "david.thompson@email.com",
+                ContactNumber = "+1-555-0789",
+                TotalBookings = 5,
+                LastVisit = DateTime.UtcNow.AddDays(-14)
+            },
+            new DashboardClientDto
+            {
+                Id = "client-005",
+                FullName = "Lisa Park",
+                Email = "lisa.park@email.com",
+                ContactNumber = "+1-555-0321",
+                TotalBookings = 20,
+                LastVisit = DateTime.UtcNow.AddHours(-6)
             }
+        };
 
-            var lastVisit = group.Max(b => b.StartTime);
-
-            clients.Add(new DashboardClientDto
-            {
-                Id = client.Id,
-                FullName = client.FullName,
-                Email = client.Email,
-                ContactNumber = client.ContactNumber,
-                TotalBookings = group.Count(),
-                LastVisit = lastVisit
-            });
-        }
-
-        return clients
-            .OrderByDescending(c => c.LastVisit ?? DateTime.MinValue)
-            .ThenBy(c => c.FullName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return mockClients.OrderByDescending(c => c.LastVisit);
     }
 }

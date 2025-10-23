@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
-
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.DTOs.Dashboard;
-using BookSpot.Application.Features.Dashboard.Queries;
 using BookSpot.Application.Exceptions;
+using BookSpot.Application.Features.Dashboard.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -153,6 +152,139 @@ public class DashboardController : ControllerBase
             {
                 error = "InternalServerError",
                 message = "An unexpected error occurred while retrieving dashboard clients."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get detailed statistics for a specific client
+    /// Providers can access any client's stats, clients can only access their own stats
+    /// </summary>
+    /// <param name="clientId">Client's user ID</param>
+    /// <returns>Detailed client statistics including booking history and spending</returns>
+    /// <response code="200">Client statistics retrieved successfully</response>
+    /// <response code="400">Invalid client ID or user is not a client</response>
+    /// <response code="401">Authentication required</response>
+    /// <response code="403">Access denied - clients can only view their own stats</response>
+    /// <response code="404">Client not found</response>
+    /// <response code="500">Unexpected server error</response>
+    [HttpGet("client/{clientId}/stats")]
+    [Authorize]
+    [ProducesResponseType(typeof(ClientStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ClientStatsDto>> GetClientStats(string clientId)
+    {
+        if (!_claimsService.IsAuthenticated())
+        {
+            return Unauthorized(new { error = "Unauthorized", message = "Authentication token is missing or invalid." });
+        }
+
+        var currentUserId = _claimsService.GetCurrentUserId();
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            return Unauthorized(new { error = "Unauthorized", message = "Authentication token is missing or invalid." });
+        }
+
+        // Check authorization: providers can access any client, clients can only access their own stats
+        if (_claimsService.IsProvider())
+        {
+            // Providers can access any client's stats
+        }
+        else if (_claimsService.IsClient())
+        {
+            // Clients can only access their own stats
+            if (currentUserId != clientId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = "Forbidden", message = "Clients can only access their own statistics." });
+            }
+        }
+        else
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Forbidden", message = "Access denied. Invalid user type." });
+        }
+
+        try
+        {
+            var clientStats = await _mediator.Send(new GetClientStatsQuery(clientId));
+            return Ok(clientStats);
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new { error = "NotFound", message = "Client profile could not be found." });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { error = "ValidationError", message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = "InternalServerError",
+                message = "An unexpected error occurred while retrieving client statistics."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get personal statistics for the authenticated client
+    /// </summary>
+    /// <returns>Client's own statistics including booking history and spending</returns>
+    /// <response code="200">Personal statistics retrieved successfully</response>
+    /// <response code="400">User is not a client</response>
+    /// <response code="401">Authentication required</response>
+    /// <response code="403">Only clients can access their own statistics</response>
+    /// <response code="404">Client profile not found</response>
+    /// <response code="500">Unexpected server error</response>
+    [HttpGet("my-stats")]
+    [Authorize]
+    [ProducesResponseType(typeof(ClientStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ClientStatsDto>> GetMyStats()
+    {
+        if (!_claimsService.IsAuthenticated())
+        {
+            return Unauthorized(new { error = "Unauthorized", message = "Authentication token is missing or invalid." });
+        }
+
+        var clientId = _claimsService.GetCurrentUserId();
+        if (string.IsNullOrEmpty(clientId))
+        {
+            return Unauthorized(new { error = "Unauthorized", message = "Authentication token is missing or invalid." });
+        }
+
+        if (!_claimsService.IsClient())
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Forbidden", message = "Only clients can access their own statistics." });
+        }
+
+        try
+        {
+            var clientStats = await _mediator.Send(new GetClientStatsQuery(clientId));
+            return Ok(clientStats);
+        }
+        catch (NotFoundException)
+        {
+            return NotFound(new { error = "NotFound", message = "Client profile could not be found." });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new { error = "ValidationError", message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                error = "InternalServerError",
+                message = "An unexpected error occurred while retrieving personal statistics."
             });
         }
     }

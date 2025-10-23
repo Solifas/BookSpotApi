@@ -1,9 +1,9 @@
+using System.Net;
+using BookSpot.Application.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using System.Net;
-using BookSpot.Application.Exceptions;
 
 namespace BookSpot.Infrastructure.Middleware;
 
@@ -60,6 +60,7 @@ public class GlobalExceptionHandler : IExceptionHandler
     {
         NotFoundException => (int)HttpStatusCode.NotFound,
         ValidationException => (int)HttpStatusCode.BadRequest,
+        BadRequestException => (int)HttpStatusCode.BadRequest,
         ArgumentException => (int)HttpStatusCode.BadRequest,
         InvalidOperationException => (int)HttpStatusCode.BadRequest,
         UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
@@ -72,6 +73,7 @@ public class GlobalExceptionHandler : IExceptionHandler
     {
         NotFoundException => "Not Found",
         ValidationException => "Validation Error",
+        BadRequestException => "Bad Request",
         ArgumentException => "Bad Request",
         InvalidOperationException => "Bad Request",
         UnauthorizedAccessException => "Unauthorized",
