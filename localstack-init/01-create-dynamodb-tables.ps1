@@ -5,7 +5,7 @@ Write-Host "Creating DynamoDB tables for BookSpot..." -ForegroundColor Green
 # Set AWS CLI environment variables for LocalStack
 $env:AWS_ACCESS_KEY_ID = "test"
 $env:AWS_SECRET_ACCESS_KEY = "test"
-$env:AWS_DEFAULT_REGION = "us-east-1"
+$env:AWS_DEFAULT_REGION = "eu-west-1"
 $env:AWS_ENDPOINT_URL = "http://localhost:4566"
 
 # Function to create table with error handling

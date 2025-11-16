@@ -129,7 +129,7 @@ The project includes a comprehensive `BookSpot.http` file with test requests for
 ### Development (LocalStack)
 - **DynamoDB Endpoint**: `http://localhost:4566`
 - **AWS Credentials**: `test` / `test`
-- **Region**: `us-east-1`
+- **Region**: `eu-west-1`
 
 ### Production (AWS)
 - Uses standard AWS Lambda and DynamoDB

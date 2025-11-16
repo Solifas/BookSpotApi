@@ -15,7 +15,7 @@ services:
       - HOST_TMP_FOLDER=${TMPDIR:-/tmp/}localstack
       - DATA_DIR=/tmp/localstack/data
       # AWS configuration
-      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_DEFAULT_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
     volumes:
