@@ -1,0 +1,19 @@
+### Forgot Password Request
+POST https://localhost:5001/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### Reset Password
+POST https://localhost:5001/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "your-reset-token-here",
+  "newPassword": "NewPassword123"
+}
+
+### Validate Reset Token
+GET https://localhost:5001/auth/validate-reset-token/your-reset-token-here

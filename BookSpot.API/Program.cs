@@ -16,33 +16,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // Add CORS configuration
-var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
-var allowCredentials = builder.Configuration.GetValue<bool>("Cors:AllowCredentials", true);
-var allowAllInDev = builder.Configuration.GetValue<bool>("Cors:AllowAllOriginsInDevelopment", false);
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("BookSpotCorsPolicy", policy =>
     {
-        if (builder.Environment.IsDevelopment() && allowAllInDev)
-        {
-            // In development, allow all origins for easier testing
-            policy.AllowAnyOrigin()
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
-        }
-        else
-        {
-            // Use configured origins
-            policy.WithOrigins(corsAllowedOrigins)
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
-
-            if (allowCredentials)
-            {
-                policy.AllowCredentials();
-            }
-        }
+        // Allow all origins and add Private Network Access headers
+        Console.WriteLine("🔧 CORS: Allowing all origins with Private Network Access support");
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .WithExposedHeaders("Access-Control-Allow-Private-Network");
     });
 });
 
@@ -184,10 +167,12 @@ builder.Services.AddScoped<IServiceRepository, ServiceRepository>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<IBusinessHourRepository, BusinessHourRepository>();
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
+builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 
 // Services
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IClaimsService, ClaimsService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Add Application layer services (MediatR, FluentValidation, Behaviors)
 builder.Services.AddApplication();
@@ -197,26 +182,57 @@ var app = builder.Build();
 // Configure exception handling
 app.UseExceptionHandler();
 
+// Add Private Network Access middleware
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers["Origin"].FirstOrDefault();
+    Console.WriteLine($"🌐 Request from origin: {origin ?? "null"}");
+    Console.WriteLine($"🔍 Request method: {context.Request.Method}");
+    Console.WriteLine($"📍 Request path: {context.Request.Path}");
+
+    // Handle Private Network Access preflight requests
+    if (context.Request.Method == "OPTIONS" &&
+        context.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
+    {
+        Console.WriteLine("🔒 Private Network Access preflight request detected");
+        context.Response.Headers.Add("Access-Control-Allow-Private-Network", "true");
+    }
+
+    // Always add Private Network Access header for requests from public origins to localhost
+    if (!string.IsNullOrEmpty(origin) && origin.StartsWith("https://") &&
+        (context.Request.Host.Host == "localhost" || context.Request.Host.Host == "127.0.0.1"))
+    {
+        Console.WriteLine("🔓 Adding Private Network Access header");
+        context.Response.Headers.Add("Access-Control-Allow-Private-Network", "true");
+    }
+
+    await next();
+
+    Console.WriteLine($"✅ Response status: {context.Response.StatusCode}");
+    var corsHeaders = context.Response.Headers.Where(h => h.Key.StartsWith("Access-Control"));
+    foreach (var header in corsHeaders)
+    {
+        Console.WriteLine($"🔒 CORS Header: {header.Key} = {header.Value}");
+    }
+});
+
 // Configure CORS (must be before authentication/authorization)
 app.UseCors("BookSpotCorsPolicy");
 
-// Configure Swagger for development
-if (app.Environment.IsDevelopment())
+
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "BookSpot API v1");
-        options.RoutePrefix = "swagger";
-        options.DocumentTitle = "BookSpot API Documentation";
-        options.DefaultModelsExpandDepth(2);
-        options.DefaultModelRendering(Swashbuckle.AspNetCore.SwaggerUI.ModelRendering.Example);
-        options.DisplayRequestDuration();
-        options.EnableDeepLinking();
-        options.EnableFilter();
-        options.ShowExtensions();
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "BookSpot API v1");
+    options.RoutePrefix = "swagger";
+    options.DocumentTitle = "BookSpot API Documentation";
+    options.DefaultModelsExpandDepth(2);
+    options.DefaultModelRendering(Swashbuckle.AspNetCore.SwaggerUI.ModelRendering.Example);
+    options.DisplayRequestDuration();
+    options.EnableDeepLinking();
+    options.EnableFilter();
+    options.ShowExtensions();
+});
 
 // Configure authentication and authorization
 app.UseAuthentication();

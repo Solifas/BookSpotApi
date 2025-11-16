@@ -4,7 +4,7 @@ Write-Host "🗄️  Creating DynamoDB tables in LocalStack..." -ForegroundColor
 # Set AWS environment variables for LocalStack
 $env:AWS_ACCESS_KEY_ID = "test"
 $env:AWS_SECRET_ACCESS_KEY = "test"
-$env:AWS_DEFAULT_REGION = "us-east-1"
+$env:AWS_DEFAULT_REGION = "eu-west-1"
 
 $endpoint = "http://localhost:4566"
 

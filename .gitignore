@@ -192,3 +192,16 @@ temp/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
+# Ter
+raform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform/environments/*.tfvars
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/tfplan

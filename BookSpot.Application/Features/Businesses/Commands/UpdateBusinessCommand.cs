@@ -8,15 +8,15 @@ namespace BookSpot.Application.Features.Businesses.Commands;
 
 public record UpdateBusinessCommand(
     string Id, 
-    string BusinessName, 
-    string Description, 
-    string Address, 
-    string Phone, 
-    string Email, 
-    string City, 
+    string? BusinessName = null, 
+    string? Description = null, 
+    string? Address = null, 
+    string? Phone = null, 
+    string? Email = null, 
+    string? City = null, 
     string? Website = null,
     string? ImageUrl = null,
-    bool IsActive = true
+    bool? IsActive = null
 ) : IRequest<Business?>;
 
 public class UpdateBusinessHandler : IRequestHandler<UpdateBusinessCommand, Business?>
@@ -54,16 +54,33 @@ public class UpdateBusinessHandler : IRequestHandler<UpdateBusinessCommand, Busi
             throw new ValidationException("You can only update your own businesses.");
         }
 
-        // Update business properties
-        existing.BusinessName = request.BusinessName;
-        existing.Description = request.Description;
-        existing.Address = request.Address;
-        existing.Phone = request.Phone;
-        existing.Email = request.Email;
-        existing.City = request.City;
-        existing.Website = request.Website;
-        existing.ImageUrl = request.ImageUrl;
-        existing.IsActive = request.IsActive;
+        // Update only the fields that are provided (partial update)
+        if (request.BusinessName != null)
+            existing.BusinessName = request.BusinessName;
+        
+        if (request.Description != null)
+            existing.Description = request.Description;
+        
+        if (request.Address != null)
+            existing.Address = request.Address;
+        
+        if (request.Phone != null)
+            existing.Phone = request.Phone;
+        
+        if (request.Email != null)
+            existing.Email = request.Email;
+        
+        if (request.City != null)
+            existing.City = request.City;
+        
+        if (request.Website != null)
+            existing.Website = request.Website;
+        
+        if (request.ImageUrl != null)
+            existing.ImageUrl = request.ImageUrl;
+        
+        if (request.IsActive.HasValue)
+            existing.IsActive = request.IsActive.Value;
 
         await _businesses.SaveAsync(existing);
         return existing;

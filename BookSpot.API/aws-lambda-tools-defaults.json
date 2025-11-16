@@ -1,6 +1,6 @@
 {
   "profile": "default",
-  "region": "us-east-1",
+  "region": "eu-west-1",
   "function-name": "bookspot-api",
   "framework": "net8.0",
   "function-runtime": "dotnet8",

@@ -6,33 +6,32 @@ public class UpdateServiceCommandValidator : AbstractValidator<UpdateServiceComm
 {
     public UpdateServiceCommandValidator()
     {
+        // Only Id is required for updates
         RuleFor(x => x.Id)
             .NotEmpty()
             .WithMessage("Service ID is required.")
             .Must(BeValidGuid)
             .WithMessage("Service ID must be a valid GUID format.");
 
+        // All other fields are optional, but validate format when provided
         RuleFor(x => x.Name)
-            .NotEmpty()
-            .WithMessage("Service name is required.")
             .Length(2, 100)
             .WithMessage("Service name must be between 2 and 100 characters.")
             .Matches(@"^[a-zA-Z0-9\s\-&'.,()]+$")
-            .WithMessage("Service name contains invalid characters.");
+            .WithMessage("Service name contains invalid characters.")
+            .When(x => !string.IsNullOrEmpty(x.Name));
 
         RuleFor(x => x.Description)
-            .NotEmpty()
-            .WithMessage("Service description is required.")
             .Length(10, 500)
-            .WithMessage("Service description must be between 10 and 500 characters.");
+            .WithMessage("Service description must be between 10 and 500 characters.")
+            .When(x => !string.IsNullOrEmpty(x.Description));
 
-        // RuleFor(x => x.Category)
-        //     .NotEmpty()
-        //     .WithMessage("Service category is required.")
-        //     .Length(2, 50)
-        //     .WithMessage("Service category must be between 2 and 50 characters.")
-        //     .Matches(@"^[a-zA-Z\s\-&'.,()]+$")
-        //     .WithMessage("Service category contains invalid characters.");
+        RuleFor(x => x.Category)
+            .Length(2, 50)
+            .WithMessage("Service category must be between 2 and 50 characters.")
+            .Matches(@"^[a-zA-Z\s\-&'.,()]+$")
+            .WithMessage("Service category contains invalid characters.")
+            .When(x => !string.IsNullOrEmpty(x.Category));
 
         RuleFor(x => x.Price)
             .GreaterThan(0)
@@ -40,7 +39,8 @@ public class UpdateServiceCommandValidator : AbstractValidator<UpdateServiceComm
             .LessThanOrEqualTo(10000)
             .WithMessage("Service price cannot exceed $10,000.")
             .PrecisionScale(10, 2, false)
-            .WithMessage("Service price can have at most 2 decimal places.");
+            .WithMessage("Service price can have at most 2 decimal places.")
+            .When(x => x.Price.HasValue);
 
         RuleFor(x => x.DurationMinutes)
             .GreaterThan(0)
@@ -48,17 +48,18 @@ public class UpdateServiceCommandValidator : AbstractValidator<UpdateServiceComm
             .LessThanOrEqualTo(480)
             .WithMessage("Service duration cannot exceed 8 hours (480 minutes).")
             .Must(BeValidDuration)
-            .WithMessage("Service duration should be in 15-minute increments.");
+            .WithMessage("Service duration should be in 15-minute increments.")
+            .When(x => x.DurationMinutes.HasValue);
 
         RuleFor(x => x.ImageUrl)
             .Must(BeValidUrl)
-            .When(x => !string.IsNullOrEmpty(x.ImageUrl))
-            .WithMessage("Image URL must be a valid URL format.");
+            .WithMessage("Image URL must be a valid URL format.")
+            .When(x => !string.IsNullOrEmpty(x.ImageUrl));
 
         RuleFor(x => x.Tags)
             .Must(HaveValidTags)
-            .When(x => x.Tags != null && x.Tags.Any())
-            .WithMessage("Tags must be between 2 and 30 characters each and contain only letters, numbers, spaces, and hyphens.");
+            .WithMessage("Tags must be between 2 and 30 characters each and contain only letters, numbers, spaces, and hyphens.")
+            .When(x => x.Tags != null && x.Tags.Any());
     }
 
     private static bool BeValidGuid(string id)
@@ -66,9 +67,9 @@ public class UpdateServiceCommandValidator : AbstractValidator<UpdateServiceComm
         return Guid.TryParse(id, out _);
     }
 
-    private static bool BeValidDuration(int durationMinutes)
+    private static bool BeValidDuration(int? durationMinutes)
     {
-        return durationMinutes % 15 == 0;
+        return durationMinutes.HasValue && durationMinutes.Value % 15 == 0;
     }
 
     private static bool BeValidUrl(string? url)

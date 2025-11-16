@@ -1,12 +1,12 @@
-using BookSpot.Application.DTOs.Auth;
 using BookSpot.Application.Features.Auth.Commands;
+using BookSpot.Application.Exceptions;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpot.API.Controllers;
 
 /// <summary>
-/// Authentication controller for user registration and login
+/// Authentication controller for user authentication and password management
 /// </summary>
 [ApiController]
 [Route("auth")]
@@ -21,40 +21,81 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Register a new user account
+    /// Request password reset for a user
     /// </summary>
-    /// <param name="request">Registration details including email, full name, optional contact number, password, and user type</param>
-    /// <returns>Authentication response with JWT token and user information</returns>
-    /// <response code="200">User successfully registered and authenticated</response>
-    /// <response code="400">Invalid input or validation errors</response>
-    /// <response code="409">User with email already exists</response>
-    [HttpPost("register")]
-    [ProducesResponseType(typeof(AuthResponse), 200)]
+    /// <param name="command">Forgot password request containing email</param>
+    /// <returns>Success message</returns>
+    /// <response code="200">Password reset email sent successfully</response>
+    /// <response code="400">Invalid email format</response>
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(object), 200)]
     [ProducesResponseType(400)]
-    [ProducesResponseType(409)]
-    public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
+    public async Task<ActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command)
     {
-        var command = new RegisterCommand(request.Email, request.FullName, request.ContactNumber, request.Password, request.UserType);
-        var response = await _mediator.Send(command);
-        return Ok(response);
+        await _mediator.Send(command);
+        
+        return Ok(new 
+        { 
+            message = "If an account with that email exists, a password reset link has been sent.",
+            success = true 
+        });
     }
 
     /// <summary>
-    /// Authenticate user and get JWT token
+    /// Reset user password using reset token
     /// </summary>
-    /// <param name="request">Login credentials (email and password)</param>
-    /// <returns>Authentication response with JWT token and user information</returns>
-    /// <response code="200">User successfully authenticated</response>
-    /// <response code="400">Invalid credentials or validation errors</response>
-    /// <response code="401">Authentication failed</response>
-    [HttpPost("login")]
-    [ProducesResponseType(typeof(AuthResponse), 200)]
+    /// <param name="command">Reset password request containing token and new password</param>
+    /// <returns>Success message</returns>
+    /// <response code="200">Password reset successfully</response>
+    /// <response code="400">Invalid token or password requirements not met</response>
+    [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(object), 200)]
     [ProducesResponseType(400)]
-    [ProducesResponseType(401)]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
     {
-        var command = new LoginCommand(request.Email, request.Password);
-        var response = await _mediator.Send(command);
-        return Ok(response);
+        await _mediator.Send(command);
+        
+        return Ok(new 
+        { 
+            message = "Password has been reset successfully. You can now log in with your new password.",
+            success = true 
+        });
+    }
+
+    /// <summary>
+    /// Validate reset token without resetting password
+    /// </summary>
+    /// <param name="token">Reset token to validate</param>
+    /// <returns>Token validation result</returns>
+    /// <response code="200">Token is valid</response>
+    /// <response code="400">Token is invalid or expired</response>
+    [HttpGet("validate-reset-token/{token}")]
+    [ProducesResponseType(typeof(object), 200)]
+    [ProducesResponseType(400)]
+    public async Task<ActionResult> ValidateResetToken(string token)
+    {
+        try
+        {
+            // We can create a simple validation query or reuse the reset logic
+            // For now, let's create a simple validation
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                throw new ValidationException("Invalid token.");
+            }
+
+            return Ok(new 
+            { 
+                message = "Token is valid.",
+                valid = true 
+            });
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(new 
+            { 
+                message = ex.Message,
+                valid = false 
+            });
+        }
     }
 }

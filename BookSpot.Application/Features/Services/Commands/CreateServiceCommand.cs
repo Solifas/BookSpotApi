@@ -22,12 +22,18 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
 {
     private readonly IServiceRepository _services;
     private readonly IBusinessRepository _businesses;
+    private readonly IProfileRepository _profiles;
     private readonly IClaimsService _claimsService;
 
-    public CreateServiceHandler(IServiceRepository services, IBusinessRepository businesses, IClaimsService claimsService)
+    public CreateServiceHandler(
+        IServiceRepository services,
+        IBusinessRepository businesses,
+        IProfileRepository profiles,
+        IClaimsService claimsService)
     {
         _services = services;
         _businesses = businesses;
+        _profiles = profiles;
         _claimsService = claimsService;
     }
 
@@ -52,6 +58,13 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
             throw new ValidationException("You can only create services for your own businesses.");
         }
 
+        // Get provider profile to retrieve name
+        var providerProfile = await _profiles.GetAsync(currentUserId);
+        if (providerProfile == null)
+        {
+            throw new ValidationException("Provider profile not found.");
+        }
+
         // Validate service data
         if (request.Price < 0)
         {
@@ -66,7 +79,8 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
         var service = new Service
         {
             Id = Guid.NewGuid().ToString(),
-            // ProviderId = currentUserId,
+            ProviderId = currentUserId,
+            ProviderName = providerProfile.FullName,
             BusinessId = request.BusinessId,
             Name = request.Name,
             Description = request.Description,

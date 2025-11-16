@@ -12,7 +12,7 @@ try {
         Write-Host "Checking DynamoDB tables..." -ForegroundColor Yellow
         $env:AWS_ACCESS_KEY_ID = "test"
         $env:AWS_SECRET_ACCESS_KEY = "test"
-        $env:AWS_DEFAULT_REGION = "us-east-1"
+        $env:AWS_DEFAULT_REGION = "eu-west-1"
         
         try {
             $tables = aws dynamodb list-tables --endpoint-url http://localhost:4566 --output json | ConvertFrom-Json
