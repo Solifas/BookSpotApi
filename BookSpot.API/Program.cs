@@ -158,6 +158,9 @@ else
     builder.Services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
 }
 
+// Configure AWS SES
+builder.Services.AddSingleton<Amazon.SimpleEmail.IAmazonSimpleEmailService, Amazon.SimpleEmail.AmazonSimpleEmailServiceClient>();
+
 builder.Services.AddScoped<IDynamoDBContext>(sp => new DynamoDBContext(sp.GetRequiredService<IAmazonDynamoDB>()));
 
 // Repositories (Clean Architecture: Infrastructure behind interfaces)

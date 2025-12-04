@@ -73,3 +73,21 @@ resource "aws_iam_role_policy" "lambda_dynamodb" {
     ]
   })
 }
+
+# SES Email Sending Policy
+resource "aws_iam_role_policy" "lambda_ses" {
+  name = "${var.environment}-bookspot-lambda-ses"
+  role = aws_iam_role.lambda_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ses:SendEmail",
+        "ses:SendRawEmail"
+      ]
+      Resource = "*"
+    }]
+  })
+}
