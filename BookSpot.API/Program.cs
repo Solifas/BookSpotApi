@@ -20,12 +20,26 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("BookSpotCorsPolicy", policy =>
     {
-        // Allow all origins and add Private Network Access headers
-        Console.WriteLine("🔧 CORS: Allowing all origins with Private Network Access support");
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .WithExposedHeaders("Access-Control-Allow-Private-Network");
+        if (builder.Environment.IsDevelopment())
+        {
+            // Allow all origins in development for local testing
+            Console.WriteLine("🔧 CORS: Development mode - allowing all origins");
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            // Use configured origins in production
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? new[] { "https://d6bnplwpittsd.cloudfront.net" };
+
+            Console.WriteLine($"🔒 CORS: Production mode - allowed origins: {string.Join(", ", allowedOrigins)}");
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
     });
 });
 

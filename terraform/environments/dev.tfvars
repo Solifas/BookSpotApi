@@ -14,5 +14,6 @@ jwt_audience   = "HireAPro"
 
 # CORS Configuration
 cors_allowed_origins = [
-  "http://hire-pros-prod.s3-website-eu-west-1.amazonaws.com"
+  "http://hire-pros-prod.s3-website-eu-west-1.amazonaws.com",
+  "https://d6bnplwpittsd.cloudfront.net"
 ]
