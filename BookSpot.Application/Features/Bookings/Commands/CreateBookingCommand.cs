@@ -6,7 +6,7 @@ using MediatR;
 
 namespace BookSpot.Application.Features.Bookings.Commands;
 
-public record CreateBookingCommand(string ServiceId, DateTime StartTime, DateTime EndTime) : IRequest<Booking>;
+public record CreateBookingCommand(string ServiceId, DateTime StartTime, DateTime EndTime, string ProviderName) : IRequest<Booking>;
 
 public class CreateBookingHandler : IRequestHandler<CreateBookingCommand, Booking>
 {
@@ -95,7 +95,8 @@ public class CreateBookingHandler : IRequestHandler<CreateBookingCommand, Bookin
             StartTime = request.StartTime,
             EndTime = finalEndTime,
             Status = "pending",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            ProviderName = request.ProviderName
         };
 
         await _bookings.SaveAsync(booking);

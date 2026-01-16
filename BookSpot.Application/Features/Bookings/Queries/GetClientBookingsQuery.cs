@@ -50,17 +50,17 @@ public class GetClientBookingsHandler : IRequestHandler<GetClientBookingsQuery, 
             throw new ValidationException("Access denied. You can only view your own bookings.");
         }
 
-        // Verify client exists and is actually a client
-        var client = await _profiles.GetAsync(request.ClientId);
-        if (client == null)
-        {
-            throw new NotFoundException($"Client with ID '{request.ClientId}' not found.");
-        }
-
-        if (client.UserType != "client")
-        {
-            throw new ValidationException($"User with ID '{request.ClientId}' is not a client.");
-        }
+        // // Verify client exists and is actually a client
+        // var client = await _profiles.GetAsync(request.ClientId);
+        // if (client == null)
+        // {
+        //     throw new NotFoundException($"Client with ID '{request.ClientId}' not found.");
+        // }
+        //
+        // if (client.UserType != "client")
+        // {
+        //     throw new ValidationException($"User with ID '{request.ClientId}' is not a client.");
+        // }
 
         // Get all bookings for this client
         var clientBookings = await _bookings.GetBookingsByClientAsync(request.ClientId);
@@ -104,6 +104,7 @@ public class GetClientBookingsHandler : IRequestHandler<GetClientBookingsQuery, 
                     EndTime = booking.EndTime,
                     Status = booking.Status,
                     CreatedAt = booking.CreatedAt,
+                    ProviderName = provider.FullName,
                     Service = new ServiceDetails
                     {
                         Id = service.Id,
@@ -114,13 +115,6 @@ public class GetClientBookingsHandler : IRequestHandler<GetClientBookingsQuery, 
                         DurationMinutes = service.DurationMinutes,
                         ImageUrl = service.ImageUrl,
                         Tags = service.Tags
-                    },
-                    Client = new ClientDetails
-                    {
-                        Id = client.Id,
-                        FullName = client.FullName,
-                        Email = client.Email,
-                        ContactNumber = client.ContactNumber
                     }
                 });
             }

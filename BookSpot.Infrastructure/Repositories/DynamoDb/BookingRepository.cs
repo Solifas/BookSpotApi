@@ -19,14 +19,15 @@ public class BookingRepository : IBookingRepository
         var scanConditions = new List<ScanCondition>
         {
             new("ProviderId", ScanOperator.Equal, providerId),
-            new("Status", ScanOperator.NotEqual, "cancelled")
+            new("Status", ScanOperator.NotEqual, "cancelled"),
+            new("Status", ScanOperator.NotEqual, "pending")
         };
 
         var search = _context.ScanAsync<Booking>(scanConditions);
         var allBookings = await search.GetRemainingAsync();
 
         // Filter for time conflicts in memory since DynamoDB doesn't support complex date range queries easily
-        return allBookings.Where(booking => 
+        return allBookings.Where(booking =>
             (startTime < booking.EndTime && endTime > booking.StartTime));
     }
 

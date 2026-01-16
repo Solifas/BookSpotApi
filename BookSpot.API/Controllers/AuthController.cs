@@ -1,3 +1,4 @@
+using BookSpot.Application.DTOs.Auth;
 using BookSpot.Application.Features.Auth.Commands;
 using BookSpot.Application.Exceptions;
 using MediatR;
@@ -21,6 +22,25 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Authenticate user and get JWT token
+    /// <param name="request">Login credentials (email and password)</param>
+    /// <returns>Authentication response with JWT token and user information</returns>
+    /// <response code="200">User successfully authenticated</response>
+    /// <response code="400">Invalid credentials or validation errors</response>
+    /// <response code="401">Authentication failed</response>
+    /// </summary>
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(AuthResponse), 200)]
+    [ProducesResponseType(400)]
+    [ProducesResponseType(401)]
+    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
+    {
+        var command = new LoginCommand(request.Email, request.Password);
+        var response = await _mediator.Send(command);
+        return Ok(response);
+    }
+
+    /// <summary>
     /// Request password reset for a user
     /// </summary>
     /// <param name="command">Forgot password request containing email</param>
@@ -33,11 +53,11 @@ public class AuthController : ControllerBase
     public async Task<ActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command)
     {
         await _mediator.Send(command);
-        
-        return Ok(new 
-        { 
+
+        return Ok(new
+        {
             message = "If an account with that email exists, a password reset link has been sent.",
-            success = true 
+            success = true
         });
     }
 
@@ -54,11 +74,11 @@ public class AuthController : ControllerBase
     public async Task<ActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
     {
         await _mediator.Send(command);
-        
-        return Ok(new 
-        { 
+
+        return Ok(new
+        {
             message = "Password has been reset successfully. You can now log in with your new password.",
-            success = true 
+            success = true
         });
     }
 
@@ -83,18 +103,18 @@ public class AuthController : ControllerBase
                 throw new ValidationException("Invalid token.");
             }
 
-            return Ok(new 
-            { 
+            return Ok(new
+            {
                 message = "Token is valid.",
-                valid = true 
+                valid = true
             });
         }
         catch (ValidationException ex)
         {
-            return BadRequest(new 
-            { 
+            return BadRequest(new
+            {
                 message = ex.Message,
-                valid = false 
+                valid = false
             });
         }
     }

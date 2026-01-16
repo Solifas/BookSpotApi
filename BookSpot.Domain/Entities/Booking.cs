@@ -18,6 +18,9 @@ public class Booking
     public string ProviderId { get; set; } = string.Empty;
 
     [DynamoDBProperty]
+    public string ProviderName { get; set; }
+
+    [DynamoDBProperty]
     public DateTime StartTime { get; set; }
 
     [DynamoDBProperty]

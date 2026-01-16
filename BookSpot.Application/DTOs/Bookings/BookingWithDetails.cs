@@ -8,6 +8,7 @@ public class BookingWithDetails
     public string ServiceId { get; set; } = string.Empty;
     public string ClientId { get; set; } = string.Empty;
     public string ProviderId { get; set; } = string.Empty;
+    public string ProviderName { get; set; } = string.Empty;
     public DateTime StartTime { get; set; }
     public DateTime EndTime { get; set; }
     public string Status { get; set; } = string.Empty;
