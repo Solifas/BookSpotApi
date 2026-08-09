@@ -1,0 +1,9 @@
+# Temporary local migration staging
+.migration-backups/
+
+# Root-level editor/AI artifacts
+.hermes/
+.vscode/
+.idea/
+*.user
+*.suo
