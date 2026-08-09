@@ -1,0 +1,25 @@
+{
+  "folders": [
+    {
+      "name": "BookSpot Monorepo",
+      "path": "."
+    },
+    {
+      "name": "Backend",
+      "path": "backend"
+    },
+    {
+      "name": "Frontend",
+      "path": "frontend"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      ".migration-backups": true,
+      "**/bin": true,
+      "**/obj": true,
+      "**/node_modules": true,
+      "**/dist": true
+    }
+  }
+}
