@@ -1,0 +1,7 @@
+Date,Amount,Reference,Description
+2026-01-11,100.00,inv-100,Internal invoice payment
+2026-01-10,50.00,,Point of sale
+2026-01-12,1234.56,INV-200,ERP export
+2026-01-16,20.00,OTHER-1,Missing in bank sample
+2026-01-14,40.00,DUP-1,Duplicate example
+2026-01-14,40.00,DUP-1,Duplicate example

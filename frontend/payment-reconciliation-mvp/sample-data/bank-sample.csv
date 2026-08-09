@@ -1,0 +1,7 @@
+Date,Amount,Reference,Description
+2026-01-10,100.00,INV-100,Invoice payment
+11/01/2026,50.00,,POS card payment
+2026-01-13,"1.234,56",INV-200,European decimal sample
+2026-01-14,40.00,DUP-1,Duplicate example
+2026-01-14,40.00,DUP-1,Duplicate example
+bad-date,70.00,ERR-1,This row should fail

@@ -1,0 +1,16 @@
+{
+  "name": "HirePros - Find & Book Local Services",
+  "short_name": "HirePros",
+  "description": "Find and book local service providers near you",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}
