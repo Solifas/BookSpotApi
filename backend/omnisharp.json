@@ -1,0 +1,40 @@
+{
+    "FormattingOptions": {
+        "EnableEditorConfigSupport": true,
+        "OrganizeImports": true,
+        "NewLine": "\r\n",
+        "UseTabs": false,
+        "TabSize": 4,
+        "IndentationSize": 4
+    },
+    "RoslynExtensionsOptions": {
+        "EnableAnalyzersSupport": true,
+        "EnableImportCompletion": true,
+        "EnableDecompilationSupport": true,
+        "EnableAsyncCompletion": true
+    },
+    "FileOptions": {
+        "SystemExcludeSearchPatterns": [
+            "**/bin/**/*",
+            "**/obj/**/*",
+            "**/.git/**/*",
+            "**/node_modules/**/*",
+            "**/.vs/**/*",
+            "**/packages/**/*"
+        ]
+    },
+    "RenameOptions": {
+        "RenameInStrings": false,
+        "RenameInComments": false
+    },
+    "ImplementTypeOptions": {
+        "InsertionBehavior": "WithOtherMembersOfTheSameKind",
+        "PropertyGenerationBehavior": "PreferThrowingProperties"
+    },
+    "DotNetCliOptions": {
+        "LocationPaths": [ ]
+    },
+    "Plugins": {
+        "LocationPaths": [ ]
+    }
+}
