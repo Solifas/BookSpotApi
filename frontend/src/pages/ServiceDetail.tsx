@@ -35,8 +35,8 @@ const ServiceDetail = () => {
   }, [serviceId]);
 
   const handleBookNow = () => {
-    if (service?.providerId) {
-      navigate(`/book/${service.providerId}`);
+    if (service?.businessId) {
+      navigate(`/book/${service.businessId}`);
     } else {
       navigate('/book');
     }

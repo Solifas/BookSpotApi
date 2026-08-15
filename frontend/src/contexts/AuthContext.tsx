@@ -1,20 +1,20 @@
-
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '../services/api';
-import { AuthResponse, RegisterRequest } from '../types/api';
+import type { Profile, RegisterRequest, UserTypeValue } from '../types/api';
 
-interface User {
+export interface User {
   id: string;
   name: string;
   email: string;
-  type: 'client' | 'provider';
-  contactNumber?: string;
+  type: UserTypeValue;
+  contactNumber: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   logout: () => void;
   isLoggedIn: boolean;
   loading: boolean;
@@ -22,69 +22,57 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const toUser = (profile: Profile): User => ({
+  id: profile.profileId,
+  name: profile.fullName,
+  email: profile.email,
+  type: profile.userType,
+  contactNumber: profile.contactNumber,
+});
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Check for existing token on app load
+  const refreshProfile = async () => {
+    const response = await apiClient.getProfile();
+    if (response.error || !response.data) {
+      if (response.status === 401) {
+        apiClient.clearToken();
+        setUser(null);
+      }
+      throw new Error(response.error || 'Unable to restore your session.');
+    }
+    setUser(toUser(response.data));
+  };
+
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('authToken');
-      if (token) {
+    const initialise = async () => {
+      if (apiClient.hasToken()) {
         try {
-          const response = await apiClient.getProfile();
-          console.log('user', response.data)
-          if (response.data) {
-            setUser({
-              id: response.data.id,
-              name: response.data.fullName,
-              email: response.data.email,
-              type: response.data.userType as 'client' | 'provider',
-              contactNumber: response.data.contactNumber,
-            });
-          }
-        } catch (error) {
-          console.error('Failed to restore auth session:', error);
-          localStorage.removeItem('authToken');
+          await refreshProfile();
+        } catch {
+          // Invalid sessions are cleared; transient failures remain retryable.
         }
       }
       setLoading(false);
     };
-
-    initAuth();
+    void initialise();
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
       const response = await apiClient.login(email, password);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      if (response.data) {
-        apiClient.setToken(response.data.token);
-        setUser({
-          id: response.data.userId,
-          name: response.data.fullName,
-          email: response.data.email,
-          type: response.data.userType as 'client' | 'provider',
-          contactNumber: response.data.contactNumber,
-        });
-      }
+      if (response.error || !response.data) throw new Error(response.error || 'Login failed.');
+      apiClient.setToken(response.data.accessToken);
+      setUser(toUser(response.data.profile));
     } finally {
       setLoading(false);
     }
@@ -94,21 +82,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setLoading(true);
     try {
       const response = await apiClient.register(data);
-
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      if (response.data) {
-        apiClient.setToken(response.data.token);
-        setUser({
-          id: response.data.userId,
-          name: response.data.fullName,
-          email: response.data.email,
-          type: response.data.userType as 'client' | 'provider',
-          contactNumber: response.data.contactNumber,
-        });
-      }
+      if (response.error || !response.data) throw new Error(response.error || 'Registration failed.');
+      apiClient.setToken(response.data.accessToken);
+      setUser(toUser(response.data.profile));
     } finally {
       setLoading(false);
     }
@@ -119,10 +95,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(null);
   };
 
-  const isLoggedIn = !!user;
-
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isLoggedIn, loading }}>
+    <AuthContext.Provider value={{
+      user,
+      login,
+      register,
+      refreshProfile,
+      logout,
+      isLoggedIn: Boolean(user),
+      loading,
+    }}>
       {children}
     </AuthContext.Provider>
   );

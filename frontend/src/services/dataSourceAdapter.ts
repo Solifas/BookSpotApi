@@ -15,9 +15,15 @@ import {
     CreateServiceCommand,
     UpdateServiceCommand,
     CreateBookingCommand,
+    CreateBusinessCommand,
+    UpdateBusinessCommand,
     Booking,
-    UserType
+    UserType,
+    ServiceDto,
+    BusinessDto,
+    BookingMutationResultDto
 } from '../types/api';
+import { toLegacyBooking } from './bookingService';
 
 // Generic response wrapper to match API client structure
 interface DataSourceResponse<T> {
@@ -25,6 +31,43 @@ interface DataSourceResponse<T> {
     error?: string;
     status: number;
 }
+
+const serviceFromDto = (service: ServiceDto): Service => ({
+    id: service.serviceId,
+    businessId: service.businessId,
+    providerName: service.providerDisplayName,
+    name: service.name,
+    description: service.description,
+    category: service.category ?? undefined,
+    price: service.price.amount,
+    durationMinutes: service.durationMinutes,
+    imageUrl: service.imageUrl ?? undefined,
+    tags: service.tags,
+
+    isActive: service.isActive,
+    createdAt: service.createdAt,
+});
+
+const businessFromDto = (business: BusinessDto): Business => ({
+    id: business.businessId,
+    providerId: business.providerProfileId,
+    businessName: business.businessName,
+    description: business.description,
+    city: business.city,
+    address: business.address,
+    phone: business.phone,
+    email: business.email,
+    website: business.website ?? undefined,
+    imageUrl: business.imageUrl ?? undefined,
+
+    isActive: business.isActive,
+    createdAt: business.createdAt,
+});
+
+const mapResponse = <T, U>(response: DataSourceResponse<T>, map: (value: T) => U): DataSourceResponse<U> => ({
+    ...response,
+    data: response.data === undefined ? undefined : map(response.data),
+});
 
 // Data Source Adapter Class
 export class DataSourceAdapter {
@@ -72,7 +115,7 @@ export class DataSourceAdapter {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for getServices');
-                return await apiClient.getServices();
+                return mapResponse(await apiClient.getServices(), (services) => services.map(serviceFromDto));
             } else {
                 console.log('🎭 Using Mock data for getServices');
                 const data = await MockDataService.getServices();
@@ -96,7 +139,7 @@ export class DataSourceAdapter {
                 if (response.status === 404) {
                     return { data: null, status: 200 };
                 }
-                return response;
+                return mapResponse(response, serviceFromDto);
             } else {
                 console.log('🎭 Using Mock data for getService');
                 const data = await MockDataService.getService(id);
@@ -116,7 +159,7 @@ export class DataSourceAdapter {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for getBusinessServices');
-                return await apiClient.getBusinessServices(businessId);
+                return mapResponse(await apiClient.getBusinessServices(businessId), (services) => services.map(serviceFromDto));
             } else {
                 console.log('🎭 Using Mock data for getBusinessServices');
                 const data = await MockDataService.getBusinessServices(businessId);
@@ -135,7 +178,7 @@ export class DataSourceAdapter {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for createService');
-                return await apiClient.createService(data);
+                return mapResponse(await apiClient.createService(data), serviceFromDto);
             } else {
                 console.log('🎭 Using Mock data for createService');
                 const service = await MockDataService.createService(data);
@@ -159,7 +202,7 @@ export class DataSourceAdapter {
                 if (response.status === 404) {
                     return { data: null, status: 200 };
                 }
-                return response;
+                return mapResponse(response, serviceFromDto);
             } else {
                 console.log('🎭 Using Mock data for updateService');
                 // For mock, we'll just return the updated data
@@ -209,7 +252,10 @@ export class DataSourceAdapter {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for getProviderBookings');
-                return await apiClient.getProviderBookings(providerId, status, startDate, endDate, isClient);
+                const response = isClient
+                    ? await apiClient.getClientBookings()
+                    : await apiClient.getProviderBookings(providerId, status, startDate, endDate);
+                return mapResponse(response, (page) => page.items.map(toLegacyBooking));
             } else {
                 console.log('🎭 Using Mock data for getProviderBookings');
                 const data = await MockDataService.getProviderBookings(providerId, status, startDate, endDate);
@@ -228,7 +274,7 @@ export class DataSourceAdapter {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for getClientBookings');
-                return await apiClient.getClientBookings(clientId);
+                return mapResponse(await apiClient.getClientBookings(clientId), (page) => page.items.map(toLegacyBooking));
             } else {
                 console.log('🎭 Using Mock data for getClientBookings');
                 const data = await MockDataService.getClientBookings(clientId);
@@ -243,43 +289,6 @@ export class DataSourceAdapter {
         }
     }
 
-    static async updateBookingStatus(bookingId: string, status: BookingStatus): Promise<DataSourceResponse<Booking | null>> {
-        try {
-            if (isApiMode()) {
-                console.log('🌐 Using API for updateBookingStatus');
-                const response = await apiClient.updateBooking(bookingId, { id: bookingId, status });
-                // Handle 404 as null instead of error
-                if (response.status === 404) {
-                    return { data: null, status: 200 };
-                }
-                return response;
-            } else {
-                console.log('🎭 Using Mock data for updateBookingStatus');
-                const data = await MockDataService.updateBookingStatus(bookingId, status);
-                if (!data) {
-                    return { data: null, status: 200 };
-                }
-                // Convert BookingWithDetails to Booking for consistency
-                const booking: Booking = {
-                    id: data.id,
-                    serviceId: data.serviceId,
-                    clientId: data.clientId,
-                    providerId: data.providerId,
-                    startTime: data.startTime,
-                    endTime: data.endTime,
-                    status: data.status,
-                    createdAt: data.createdAt
-                };
-                return { data: booking, status: 200 };
-            }
-        } catch (error) {
-            console.error('DataSourceAdapter.updateBookingStatus error:', error);
-            return {
-                error: error instanceof Error ? error.message : 'Unknown error',
-                status: 500
-            };
-        }
-    }
 
     // Dashboard
     static async getDashboardStats(providerId: string, isClient?: boolean): Promise<DataSourceResponse<DashboardStats>> {
@@ -334,7 +343,7 @@ export class DataSourceAdapter {
                 if (response.status === 404) {
                     return { data: null, status: 200 };
                 }
-                return response;
+                return mapResponse(response, businessFromDto);
             } else {
                 console.log('🎭 Using Mock data for getBusiness');
                 const data = await MockDataService.getBusiness(id);
@@ -350,11 +359,11 @@ export class DataSourceAdapter {
         }
     }
 
-    static async createBusiness(data: any): Promise<DataSourceResponse<Business>> {
+    static async createBusiness(data: CreateBusinessCommand): Promise<DataSourceResponse<Business>> {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for createBusiness');
-                return await apiClient.createBusiness(data);
+                return mapResponse(await apiClient.createBusiness(data), businessFromDto);
             } else {
                 console.log('🎭 Using Mock data for createBusiness');
                 // For mock, create a simple business object
@@ -383,7 +392,7 @@ export class DataSourceAdapter {
         }
     }
 
-    static async updateBusiness(id: string, data: any): Promise<DataSourceResponse<Business | null>> {
+    static async updateBusiness(id: string, data: UpdateBusinessCommand): Promise<DataSourceResponse<Business | null>> {
         try {
             if (isApiMode()) {
                 console.log('🌐 Using API for updateBusiness');
@@ -392,7 +401,7 @@ export class DataSourceAdapter {
                 if (response.status === 404) {
                     return { data: null, status: 200 };
                 }
-                return response;
+                return mapResponse(response, businessFromDto);
             } else {
                 console.log('🎭 Using Mock data for updateBusiness');
                 const existing = await MockDataService.getBusiness(id);
@@ -411,34 +420,6 @@ export class DataSourceAdapter {
         }
     }
 
-    static async createBooking(data: CreateBookingCommand): Promise<DataSourceResponse<Booking>> {
-        try {
-            if (isApiMode()) {
-                console.log('🌐 Using API for createBooking');
-                return await apiClient.createBooking(data);
-            } else {
-                console.log('🎭 Using Mock data for createBooking');
-                const newBooking: Booking = {
-                    id: `mock-booking-${Date.now()}`,
-                    serviceId: data.serviceId,
-                    clientId: 'mock-client',
-                    providerId: 'mock-provider',
-                    startTime: data.startTime,
-                    endTime: data.endTime,
-                    status: BookingStatus.PENDING,
-                    createdAt: new Date().toISOString(),
-                    providerName: data.providerName
-                };
-                return { data: newBooking, status: 201 };
-            }
-        } catch (error) {
-            console.error('DataSourceAdapter.createBooking error:', error);
-            return {
-                error: error instanceof Error ? error.message : 'Unknown error',
-                status: 500
-            };
-        }
-    }
 
     static async getBooking(id: string): Promise<DataSourceResponse<Booking | null>> {
         try {
@@ -449,7 +430,7 @@ export class DataSourceAdapter {
                 if (response.status === 404) {
                     return { data: null, status: 200 };
                 }
-                return response;
+                return mapResponse(response, toLegacyBooking);
             } else {
                 console.log('🎭 Using Mock data for getBooking');
                 // For mock, create a simple booking (or return null if not found)

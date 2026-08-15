@@ -5,8 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { QueryProvider } from "./providers/QueryProvider";
-import DataSourceSwitcher from "./components/DataSourceSwitcher";
-import DataSourceDebug from "./components/DataSourceDebug";
+
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
@@ -30,7 +29,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/book/:providerId" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
+            <Route path="/book/:businessId" element={<ProtectedRoute><BookingPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
@@ -42,8 +41,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
-        <DataSourceSwitcher />
-        <DataSourceDebug />
+
       </AuthProvider>
     </TooltipProvider>
   </QueryProvider>

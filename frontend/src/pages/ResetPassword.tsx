@@ -1,153 +1,98 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { toast } from 'sonner';
-import { apiClient } from '@/services/api';
-import { Eye, EyeOff } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { apiClient, createIdempotencyKey } from '@/services/api';
+import { getResetTokenFromLocation, validateResetPassword, type FieldErrors } from '@/lib/authValidation';
 
 const ResetPassword = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [token] = useState(() => getResetTokenFromLocation(window.location.hash, window.location.search));
+  const [state, setState] = useState<'validating' | 'ready' | 'invalid' | 'unavailable' | 'complete'>('validating');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const resetOperationKey = useRef<string | null>(null);
+
+  const validateToken = useCallback(async () => {
+    if (!token) {
+      setState('invalid');
+      return;
+    }
+    setState('validating');
+    const response = await apiClient.validateResetToken(token);
+    if (response.data?.valid) setState('ready');
+    else if (response.status === 400) setState('invalid');
+    else setState('unavailable');
+  }, [token]);
 
   useEffect(() => {
-    const tokenFromUrl = searchParams.get('token');
-    if (!tokenFromUrl) {
-      toast.error('Invalid reset link');
-      navigate('/login');
-    } else {
-      setToken(tokenFromUrl);
-    }
-  }, [searchParams, navigate]);
+    window.history.replaceState(null, '', window.location.pathname);
+    void validateToken();
+  }, [validateToken]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!token) return;
+    const validation = validateResetPassword(password, confirmPassword);
+    setErrors(validation);
+    setServerError('');
+    if (Object.keys(validation).length) return;
 
-    if (!token) {
-      toast.error('Invalid reset link');
-      return;
-    }
-
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters long');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-
-    setIsLoading(true);
-
-    const response = await apiClient.resetPassword(token, password);
-
+    setSubmitting(true);
+    resetOperationKey.current ??= createIdempotencyKey();
+    const response = await apiClient.resetPassword(token, password, resetOperationKey.current);
+    setSubmitting(false);
     if (response.error) {
-      toast.error(response.error);
-      setIsLoading(false);
+      if (response.status !== 0 && response.status !== 503) resetOperationKey.current = null;
+      setServerError(response.error);
       return;
     }
-
-    toast.success('Password reset successful! Please login with your new password.');
-    setTimeout(() => {
-      navigate('/login');
-    }, 2000);
+    resetOperationKey.current = null;
+    setState('complete');
   };
 
-  if (!token) {
-    return null;
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-green-400 rounded-full flex items-center justify-center">
-              <Eye className="h-7 w-7 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-slate-800">HirePros</span>
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+      <section className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 sm:p-8" aria-live="polite">
+        <h1 className="text-3xl font-bold text-slate-900">Reset password</h1>
+        {state === 'validating' && <p className="mt-4 text-slate-600">Checking your reset link…</p>}
+        {state === 'invalid' && (
+          <div className="mt-5" role="alert">
+            <p className="text-red-800">This reset link is invalid or no longer available.</p>
+            <Link to="/login" className="inline-block mt-4 text-blue-700 font-medium">Request a new reset link</Link>
           </div>
-
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Reset Password</h1>
-          <p className="text-slate-600">Enter your new password below</p>
-        </div>
-
-        {/* Reset Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        )}
+        {state === 'unavailable' && (
+          <div className="mt-5" role="alert">
+            <p className="text-amber-900">We could not check this reset link right now. The link may still be valid.</p>
+            <button type="button" onClick={() => void validateToken()} className="mt-4 text-blue-700 font-medium">Try validation again</button>
+          </div>
+        )}
+        {state === 'complete' && (
+          <div className="mt-5">
+            <p className="text-green-800">Password reset completed.</p>
+            <button onClick={() => navigate('/login')} className="mt-5 w-full bg-blue-600 text-white py-3 rounded-xl">Sign in with your new password</button>
+          </div>
+        )}
+        {state === 'ready' && (
+          <form onSubmit={submit} noValidate className="space-y-5 mt-6">
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
-                New Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  placeholder="Enter new password"
-                  className="w-full pr-10 pl-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+              <label htmlFor="new-password" className="block text-sm font-medium mb-2">New password</label>
+              <input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? 'password-error' : undefined} className="w-full p-3 border rounded-xl" />
+              {errors.password && <p id="password-error" role="alert" className="text-red-700 text-sm mt-1">{errors.password}</p>}
             </div>
-
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="Confirm new password"
-                  className="w-full pr-10 pl-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+              <label htmlFor="confirm-password" className="block text-sm font-medium mb-2">Confirm new password</label>
+              <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} aria-invalid={Boolean(errors.confirmPassword)} aria-describedby={errors.confirmPassword ? 'confirm-error' : undefined} className="w-full p-3 border rounded-xl" />
+              {errors.confirmPassword && <p id="confirm-error" role="alert" className="text-red-700 text-sm mt-1">{errors.confirmPassword}</p>}
             </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white py-3 rounded-xl font-medium hover:from-blue-600 hover:to-green-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50"
-            >
-              {isLoading ? 'Resetting...' : 'Reset Password'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate('/login')}
-              className="w-full text-slate-600 py-3 rounded-xl font-medium hover:bg-slate-100 transition-all duration-200"
-            >
-              Back to Login
-            </button>
+            {serverError && <div role="alert" className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg">{serverError}</div>}
+            <button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white py-3 rounded-xl disabled:opacity-60">{submitting ? 'Resetting…' : 'Reset password'}</button>
           </form>
-        </div>
-      </div>
-    </div>
+        )}
+      </section>
+    </main>
   );
 };
 

@@ -25,7 +25,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }: ForgotPasswordModalProps) => {
         toast.error(response.error);
       } else {
         setEmailSent(true);
-        toast.success('Password reset email sent! Please check your inbox.');
+        toast.success(response.data?.message || 'If an account matches, password reset instructions will be sent.');
       }
     } catch (error) {
       toast.error('Failed to send reset email. Please try again.');
@@ -93,8 +93,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }: ForgotPasswordModalProps) => {
           <div className="space-y-4 mt-4">
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <p className="text-green-800 text-sm">
-                We've sent a password reset link to <strong>{email}</strong>. 
-                Please check your inbox and follow the instructions.
+                If an account matches, password reset instructions will be sent.
               </p>
             </div>
 

@@ -1,238 +1,105 @@
-import React, { useState, useEffect } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Calendar, ArrowLeft, Mail, Lock, User, Building, Phone } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { validateRegistration, type FieldErrors } from '../lib/authValidation';
+import type { UserTypeValue } from '../types/api';
 
 const Register = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { register } = useAuth();
-  const [userType, setUserType] = useState<'client' | 'provider'>('client');
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    businessName: ''
+  const initialType: UserTypeValue = searchParams.get('type') === 'provider' ? 'provider' : 'client';
+  const [fields, setFields] = useState({
+    fullName: '', email: '', contactNumber: '', password: '', confirmPassword: '', userType: initialType,
   });
-  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Check URL parameters for pre-selected user type
-  useEffect(() => {
-    const typeParam = searchParams.get('type');
-    if (typeParam === 'provider' || typeParam === 'client') {
-      setUserType(typeParam);
-    }
-  }, [searchParams]);
+  const update = (name: string, value: string) => {
+    setFields((current) => ({ ...current, [name]: value }));
+    setErrors((current) => ({ ...current, [name]: '' }));
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const validation = validateRegistration(fields);
+    setErrors(validation);
+    setServerError('');
+    if (Object.keys(validation).length) return;
 
-    if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
-      return;
-    }
-
-    setLoading(true);
-
+    setSubmitting(true);
     try {
       await register({
-        email: formData.email,
-        fullName: formData.name,
-        contactNumber: formData.phone,
-        password: formData.password,
-        userType: userType
+        email: fields.email.trim(),
+        fullName: fields.fullName.trim(),
+        contactNumber: fields.contactNumber.trim() || null,
+        password: fields.password,
+        userType: fields.userType,
       });
-      console.log('Registration successful');
       navigate('/dashboard');
     } catch (error) {
-      console.error('Registration failed:', error);
-      alert(error instanceof Error ? error.message : 'Registration failed');
+      setServerError(error instanceof Error ? error.message : 'Registration failed. Please try again.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
-  };
+  const input = (name: 'fullName' | 'email' | 'contactNumber' | 'password' | 'confirmPassword', label: string, type = 'text') => (
+    <div>
+      <label htmlFor={name} className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+      <input
+        id={name}
+        name={name}
+        type={type}
+        value={fields[name]}
+        onChange={(event) => update(name, event.target.value)}
+        aria-invalid={Boolean(errors[name])}
+        aria-describedby={errors[name] ? `${name}-error` : undefined}
+        autoComplete={name === 'confirmPassword' ? 'new-password' : name === 'password' ? 'new-password' : name}
+        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+      />
+      {errors[name] && <p id={`${name}-error`} role="alert" className="text-sm text-red-700 mt-1">{errors[name]}</p>}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center space-x-2 text-slate-600 hover:text-blue-600 mb-6">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Home</span>
-          </Link>
-
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-green-400 rounded-full flex items-center justify-center">
-              <Calendar className="h-7 w-7 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-slate-800">HirePros</span>
-          </div>
-
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Account</h1>
-          <p className="text-slate-600">Join thousands of users on HirePros</p>
-        </div>
-
-        {/* Registration Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* User Type Selection */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">
-                Join as...
-              </label>
+        <header className="text-center mb-6">
+          <Link to="/" className="text-slate-600 hover:text-blue-700">← Back to Home</Link>
+          <div className="flex items-center justify-center gap-2 mt-5"><Calendar aria-hidden className="text-blue-600" /><span className="text-2xl font-bold">HirePros</span></div>
+          <h1 className="text-3xl font-bold text-slate-900 mt-4">Create account</h1>
+        </header>
+        <section className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+          <form onSubmit={submit} noValidate className="space-y-5">
+            <fieldset>
+              <legend className="text-sm font-medium text-slate-700 mb-2">Account type</legend>
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setUserType('client')}
-                  className={`p-3 rounded-xl border-2 transition-all duration-200 flex items-center justify-center space-x-2 ${userType === 'client'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-slate-200 hover:border-blue-300'
-                    }`}
-                >
-                  <User className="h-4 w-4" />
-                  <span className="font-medium">Client</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUserType('provider')}
-                  className={`p-3 rounded-xl border-2 transition-all duration-200 flex items-center justify-center space-x-2 ${userType === 'provider'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-slate-200 hover:border-blue-300'
-                    }`}
-                >
-                  <Building className="h-4 w-4" />
-                  <span className="font-medium">Provider</span>
-                </button>
+                {(['client', 'provider'] as const).map((type) => (
+                  <button key={type} type="button" aria-pressed={fields.userType === type} onClick={() => setFields((current) => ({ ...current, userType: type }))}
+                    className={`p-3 rounded-xl border-2 capitalize ${fields.userType === type ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}>
+                    {type}
+                  </button>
+                ))}
               </div>
-            </div>
-
-            {/* Full Name */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your full name"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="your.email@example.com"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Phone Number
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="+27 XX XXX XXXX"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter your password"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Confirm Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Confirm your password"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white py-3 rounded-xl font-medium hover:from-blue-600 hover:to-green-600 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50"
-            >
-              {loading ? 'Creating Account...' : `Create ${userType === 'client' ? 'Client' : 'Provider'} Account`}
+            </fieldset>
+            {input('fullName', 'Full name')}
+            {input('email', 'Email address', 'email')}
+            {input('contactNumber', 'Contact number (optional)', 'tel')}
+            {input('password', 'Password', 'password')}
+            <p className="text-xs text-slate-600 -mt-3">Use 15–64 characters.</p>
+            {input('confirmPassword', 'Confirm password', 'password')}
+            {serverError && <div role="alert" className="bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg">{serverError}</div>}
+            <button type="submit" disabled={submitting} className="w-full bg-gradient-to-r from-blue-500 to-green-500 text-white py-3 rounded-xl font-medium disabled:opacity-60">
+              {submitting ? 'Creating account…' : `Create ${fields.userType} account`}
             </button>
           </form>
-
-          {/* Login Link */}
-          <div className="mt-6 text-center">
-            <p className="text-slate-600">
-              Already have an account?{' '}
-              <Link to="/login" className="text-blue-600 font-medium hover:text-blue-700 transition-colors">
-                Sign in here
-              </Link>
-            </p>
-          </div>
-        </div>
+          <p className="mt-6 text-center text-slate-600">Already registered? <Link to="/login" className="text-blue-700 font-medium">Sign in</Link></p>
+        </section>
       </div>
-    </div>
+    </main>
   );
 };
 

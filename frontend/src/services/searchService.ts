@@ -1,6 +1,6 @@
 // Enhanced search service for services and businesses
 import { DataSourceAdapter } from './dataSourceAdapter';
-import { ServiceSearchParams, ServiceSearchResponse, ServiceWithBusiness } from '../types/api';
+import { ServiceSearchParams, ServiceWithBusiness } from '../types/api';
 import { Service as FrontendService } from '../data/servicesData';
 import { adaptServiceWithBusinessToFrontend } from './serviceAdapter';
 
@@ -32,30 +32,31 @@ export class SearchService {
                 };
             }
 
-            const rawServices: Partial<ServiceWithBusiness>[] = Array.isArray(data)
-                ? (data as ServiceWithBusiness[])
-                : Array.isArray((data as ServiceSearchResponse).services)
-                    ? (data as ServiceSearchResponse).services as ServiceWithBusiness[]
-                    : [];
+            const rawServices: Partial<ServiceWithBusiness>[] = data.items.map((service) => ({
+                id: service.serviceId,
+                businessId: service.businessId,
+                name: service.name,
+                description: service.description,
+                category: service.category ?? undefined,
+                price: service.price.amount,
+                durationMinutes: service.durationMinutes,
+                imageUrl: service.imageUrl ?? undefined,
+                tags: service.tags,
+                isActive: service.isActive,
+                createdAt: service.createdAt,
+                providerName: service.providerDisplayName,
+            }));
 
             const frontendServices = rawServices.map((service) =>
                 adaptServiceWithBusinessToFrontend(service)
             );
 
-            const totalCount = Array.isArray(data)
-                ? rawServices.length
-                : (data as ServiceSearchResponse).totalCount ?? rawServices.length;
-
-            const pageSize = Array.isArray(data)
-                ? params.pageSize ?? (rawServices.length || 10)
-                : (data as ServiceSearchResponse).pageSize ?? params.pageSize ?? (rawServices.length || 10);
-
-            const page = Array.isArray(data)
-                ? params.page ?? 1
-                : (data as ServiceSearchResponse).page ?? params.page ?? 1;
+            const totalCount = data.totalCount;
+            const pageSize = data.pageSize;
+            const page = data.page;
 
             const totalPages = pageSize > 0
-                ? Math.max(1, Math.ceil((totalCount || rawServices.length) / pageSize))
+                ? Math.ceil(totalCount / pageSize)
                 : 0;
 
             return {

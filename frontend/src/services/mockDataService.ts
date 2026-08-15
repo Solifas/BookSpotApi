@@ -8,7 +8,8 @@ import {
     DashboardStats,
     CityInfo,
     ServiceSearchResponse,
-    ServiceWithBusiness,
+    ServiceSearchParams,
+    ServiceDto,
     BookingStatus,
     UserType
 } from '../types/api';
@@ -719,7 +720,7 @@ const mockBookings: BookingWithDetails[] = [
 // Mock Data Service Class
 export class MockDataService {
     // Services
-    static async searchServices(params: any): Promise<ServiceSearchResponse> {
+    static async searchServices(params: ServiceSearchParams): Promise<ServiceSearchResponse> {
         await simulateDelay();
         simulateError();
 
@@ -770,30 +771,31 @@ export class MockDataService {
         const endIndex = startIndex + pageSize;
         const paginatedServices = filteredServices.slice(startIndex, endIndex);
 
-        // Convert to ServiceWithBusiness format
-        const servicesWithBusiness: ServiceWithBusiness[] = paginatedServices.map(service => {
+        const items: ServiceDto[] = paginatedServices.map(service => {
             const business = mockBusinesses.find(b => b.id === service.businessId);
             return {
-                ...service,
-                business: {
-                    id: business?.id || '',
-                    businessName: business?.businessName || 'Unknown Business',
-                    city: business?.city || 'Unknown City',
-                    address: business?.address,
-                    phone: business?.phone,
-                    email: business?.email,
-                    rating: 4.5, // Mock rating
-                    reviewCount: Math.floor(Math.random() * 200) + 10
-                }
+                serviceId: service.id,
+                businessId: service.businessId,
+                providerProfileId: business?.providerId ?? 'mock-provider',
+                providerDisplayName: business?.providerName ?? 'Mock Provider',
+                name: service.name,
+                description: service.description ?? '',
+                category: service.category ?? null,
+                price: { amount: service.price, currency: 'ZAR' },
+                durationMinutes: service.durationMinutes,
+                imageUrl: service.imageUrl ?? null,
+                tags: service.tags ?? [],
+                location: business?.city ?? null,
+                isActive: service.isActive,
+                createdAt: service.createdAt,
             };
         });
 
         return {
-            services: servicesWithBusiness,
+            items,
             totalCount: filteredServices.length,
             page,
             pageSize,
-            totalPages: Math.ceil(filteredServices.length / pageSize)
         };
     }
 

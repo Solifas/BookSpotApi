@@ -1,21 +1,20 @@
-// API Types matching your OpenAPI specification
+// API Types matching the approved BookSpot contract
+
+export type UserTypeValue = 'client' | 'provider';
 
 export interface AuthResponse {
-    token: string;
-    userId: string;
-    email: string;
-    fullName: string;
-    contactNumber?: string;
-    userType: string;
+    accessToken: string;
+    tokenType: 'Bearer';
     expiresAt: string;
+    profile: Profile;
 }
 
 export interface RegisterRequest {
     email: string;
     fullName: string;
-    contactNumber?: string;
+    contactNumber?: string | null;
     password: string;
-    userType: string;
+    userType: UserTypeValue;
 }
 
 export interface LoginRequest {
@@ -24,12 +23,11 @@ export interface LoginRequest {
 }
 
 export interface Profile {
-    id: string;
+    profileId: string;
     email: string;
     fullName: string;
-    contactNumber?: string;
-    userType: string;
-    passwordHash?: string;
+    contactNumber: string | null;
+    userType: UserTypeValue;
     createdAt: string;
 }
 
@@ -44,9 +42,8 @@ export interface Client {
 }
 
 export interface UpdateProfileCommand {
-    id: string;
-    email?: string;
-    userType?: string;
+    fullName?: string;
+    contactNumber?: string | null;
 }
 
 export interface CreateProfileCommand {
@@ -98,7 +95,7 @@ export interface UpdateServiceCommand {
 export interface Booking {
     id: string;
     serviceId: string;
-    clientId: string;
+    clientId?: string;
     providerId: string;
     providerName?: string;
     startTime: string;
@@ -110,8 +107,6 @@ export interface Booking {
 export interface CreateBookingCommand {
     serviceId: string;
     startTime: string;
-    endTime: string;
-    providerName?: string;
 }
 
 export interface UpdateBookingCommand {
@@ -140,14 +135,14 @@ export interface Business {
 
 export interface CreateBusinessCommand {
     businessName: string;
-    description?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
+    description: string;
+    address: string;
+    phone: string;
+    email: string;
     city: string;
-    website?: string;
-    imageUrl?: string;
-    isActive: boolean;
+    website?: string | null;
+    imageUrl?: string | null;
+    isActive?: boolean;
 }
 
 export interface UpdateBusinessCommand {
@@ -213,7 +208,9 @@ export interface ProblemDetails {
     status?: number;
     detail?: string;
     instance?: string;
-    [key: string]: any;
+    code?: string;
+    traceId?: string;
+    errors?: Record<string, string[]>;
 }
 
 // Enhanced interfaces for better frontend integration
@@ -232,9 +229,9 @@ export interface ServiceWithBusiness extends Service {
 }
 
 export interface BookingWithDetails extends Booking {
-    service: Service;
-    client: {
-        id: string;
+    service: Pick<Service, 'id' | 'businessId' | 'name' | 'price' | 'durationMinutes'> & Partial<Service>;
+    client?: {
+        id?: string;
         fullName: string;
         email: string;
         contactNumber?: string;
@@ -260,11 +257,10 @@ export interface ServiceSearchParams {
 }
 
 export interface ServiceSearchResponse {
-    services: ServiceWithBusiness[];
+    items: ServiceDto[];
     totalCount: number;
     page: number;
     pageSize: number;
-    totalPages: number;
 }
 
 // Booking status enum for better type safety
@@ -297,3 +293,54 @@ export interface CityInfo {
     province: string;
     serviceCount: number;
 }
+
+export type BookingStatusValue = 'pending' | 'confirmed' | 'declined' | 'cancelled' | 'completed' | 'no_show';
+export type BookingAction = 'confirm' | 'decline' | 'cancel' | 'complete' | 'mark_no_show' | 'reschedule';
+export interface Money { amount: number; currency: 'ZAR'; }
+export interface ServiceDto {
+    serviceId: string; businessId: string; providerProfileId: string; providerDisplayName: string;
+    name: string; description: string; category: string | null; price: Money; durationMinutes: number;
+    imageUrl: string | null; tags: string[]; location: string | null; isActive: boolean; createdAt: string;
+}
+export interface AvailabilitySlotDto { startTime: string; endTime: string; }
+export interface ServiceAvailabilityDto {
+    serviceId: string; businessId: string; timeZone: string; from: string; to: string;
+    durationMinutes: number; slots: AvailabilitySlotDto[];
+}
+export interface BookingActionRequest { action: BookingAction; expectedVersion: number; startTime?: string; }
+export interface BookingMutationResultDto {
+    view: 'client' | 'provider'; bookingId: string; status: BookingStatusValue;
+    startTime: string; endTime: string; version: number; updatedAt: string;
+}
+export interface BookingDto {
+    bookingId: string; serviceId: string; businessId: string; providerProfileId: string;
+    status: BookingStatusValue; startTime: string; endTime: string; price: Money;
+    version: number; createdAt: string; updatedAt: string;
+    service: { name: string; durationMinutes: number };
+    business: { businessName: string; address: string; city: string };
+    view: 'client' | 'provider'; clientProfileId?: string;
+    client?: { fullName: string; email: string; contactNumber: string | null };
+}
+export interface BookingPageDto { items: BookingDto[]; nextCursor: string | null; }
+export interface BusinessDto {
+    businessId: string; providerProfileId: string; businessName: string; description: string;
+    address: string; city: string; phone: string; email: string; website: string | null;
+    imageUrl: string | null; isActive: boolean; rating: number; reviewCount: number;
+    timeZone: string; createdAt: string;
+}
+export interface UpdateBusinessRequest {
+    businessName?: string; description?: string; address?: string; city?: string;
+    phone?: string; email?: string; website?: string | null; imageUrl?: string | null; isActive?: boolean;
+}
+export interface ProviderDashboardDto {
+    kind: 'provider'; generatedAt: string; timeZone: string; todayBookings: number;
+    weekBookings: number; pendingRequests: number; totalClients: number; activeServices: number;
+    monthlyRevenue: Money; upcoming: BookingDto[];
+    recentClients: Array<{ clientProfileId: string; fullName: string; lastBookingAt: string; totalBookings: number }>;
+}
+export interface ClientDashboardDto {
+    kind: 'client'; generatedAt: string; totalBookings: number; completedBookings: number;
+    cancelledBookings: number; pendingRequests: number; totalSpent: Money;
+    upcoming: BookingDto[]; recent: BookingDto[];
+}
+export type DashboardDto = ProviderDashboardDto | ClientDashboardDto;
