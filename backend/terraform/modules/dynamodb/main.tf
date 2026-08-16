@@ -272,3 +272,60 @@ resource "aws_dynamodb_table" "password_reset_tokens" {
     Environment = var.environment
   }
 }
+
+resource "aws_dynamodb_table" "identity_claims" {
+  name         = "identity_claims"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "ClaimKey"
+
+  attribute {
+    name = "ClaimKey"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+}
+
+resource "aws_dynamodb_table" "booking_reservations" {
+  name         = "booking_reservations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "ReservationKey"
+
+  attribute {
+    name = "ReservationKey"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+}
+
+resource "aws_dynamodb_table" "booking_audit" {
+  name         = "booking_audit"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "AuditKey"
+
+  attribute {
+    name = "AuditKey"
+    type = "S"
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+}

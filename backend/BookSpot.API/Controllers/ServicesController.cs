@@ -3,6 +3,7 @@ using BookSpot.Application.Features.Services.Queries;
 using BookSpot.Application.Exceptions;
 using BookSpot.Domain.Entities;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpot.API.Controllers;
@@ -24,6 +25,7 @@ public class ServicesController : ControllerBase
     /// <returns>List of all services</returns>
     /// <response code="200">Services retrieved successfully</response>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<Service>), 200)]
     public async Task<ActionResult<IEnumerable<Service>>> GetAll()
     {
@@ -46,6 +48,7 @@ public class ServicesController : ControllerBase
     /// <response code="200">Services retrieved successfully</response>
     /// <response code="400">Invalid search parameters</response>
     [HttpGet("search")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<Service>), 200)]
     [ProducesResponseType(400)]
     public async Task<ActionResult<IEnumerable<Service>>> Search(
@@ -74,6 +77,7 @@ public class ServicesController : ControllerBase
     /// <response code="200">Service found</response>
     /// <response code="404">Service not found</response>
     [HttpGet("{id}")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(Service), 200)]
     [ProducesResponseType(404)]
     public async Task<ActionResult<Service>> Get(string id)
@@ -95,6 +99,7 @@ public class ServicesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only business owners can create services</response>
     [HttpPost]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(typeof(Service), 201)]
     [ProducesResponseType(400)]
     [ProducesResponseType(401)]
@@ -117,6 +122,7 @@ public class ServicesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only service owner can update</response>
     [HttpPut("{id}")]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(typeof(Service), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
@@ -144,6 +150,7 @@ public class ServicesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only service owner can delete</response>
     [HttpDelete("{id}")]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]

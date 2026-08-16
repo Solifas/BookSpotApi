@@ -27,6 +27,7 @@ public class BusinessesController : ControllerBase
     /// <response code="200">Business found</response>
     /// <response code="404">Business not found</response>
     [HttpGet("{id}")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(Business), 200)]
     [ProducesResponseType(404)]
     public async Task<ActionResult<Business>> Get(string id)
@@ -45,7 +46,7 @@ public class BusinessesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only business owner can access</response>
     [HttpGet("{id}/services")]
-    [Authorize]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<Service>), 200)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]
@@ -64,6 +65,7 @@ public class BusinessesController : ControllerBase
     /// <response code="200">Services retrieved successfully</response>
     /// <response code="404">Provider not found</response>
     [HttpGet("provider/{providerId}/services")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<Service>), 200)]
     [ProducesResponseType(404)]
     public async Task<ActionResult<IEnumerable<Service>>> GetServicesByProvider(string providerId)
@@ -82,6 +84,7 @@ public class BusinessesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only providers can create businesses</response>
     [HttpPost]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(typeof(Business), 201)]
     [ProducesResponseType(400)]
     [ProducesResponseType(401)]
@@ -104,6 +107,7 @@ public class BusinessesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only business owner can update</response>
     [HttpPut("{id}")]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(typeof(Business), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
@@ -126,6 +130,7 @@ public class BusinessesController : ControllerBase
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only business owner can delete</response>
     [HttpDelete("{id}")]
+    [Authorize(Policy = "ProviderOnly")]
     [ProducesResponseType(204)]
     [ProducesResponseType(404)]
     [ProducesResponseType(401)]

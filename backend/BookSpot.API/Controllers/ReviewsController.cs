@@ -2,6 +2,7 @@ using BookSpot.Application.Features.Reviews.Commands;
 using BookSpot.Application.Features.Reviews.Queries;
 using BookSpot.Domain.Entities;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpot.API.Controllers;
@@ -14,6 +15,7 @@ public class ReviewsController : ControllerBase
     public ReviewsController(IMediator mediator) => _mediator = mediator;
 
     [HttpGet("{id}")]
+    [AllowAnonymous]
     public async Task<ActionResult<Review>> Get(string id)
     {
         var review = await _mediator.Send(new GetReviewQuery(id));
@@ -21,6 +23,7 @@ public class ReviewsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "ClientOnly")]
     public async Task<ActionResult<Review>> Post([FromBody] CreateReviewCommand command)
     {
         var review = await _mediator.Send(command);
@@ -28,6 +31,7 @@ public class ReviewsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = "ClientOnly")]
     public async Task<ActionResult<Review>> Put(string id, [FromBody] UpdateReviewCommand command)
     {
         if (id != command.Id) return BadRequest("Id mismatch");
@@ -36,6 +40,7 @@ public class ReviewsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Policy = "ClientOnly")]
     public async Task<IActionResult> Delete(string id)
     {
         var deleted = await _mediator.Send(new DeleteReviewCommand(id));

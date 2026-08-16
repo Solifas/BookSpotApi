@@ -52,10 +52,10 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
             throw new ValidationException("Only providers can create services.");
         }
 
-        // Validate that the current user owns the business
-        if (request.BusinessId != currentUserId)
+        var business = await _businesses.GetAsync(request.BusinessId);
+        if (business is null || business.ProviderId != currentUserId)
         {
-            throw new ValidationException("You can only create services for your own businesses.");
+            throw new NotFoundException("Business not found.");
         }
 
         // Get provider profile to retrieve name

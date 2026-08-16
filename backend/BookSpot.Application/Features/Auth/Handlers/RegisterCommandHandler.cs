@@ -21,48 +21,38 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, AuthRespo
 
     public async Task<AuthResponse> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
-        // Check if user already exists
-        var existingProfile = await _profileRepository.GetByEmailAsync(request.Email);
-        if (existingProfile != null)
-        {
-            throw new ValidationException("User with this email already exists");
-        }
-
-        // Validate user type
+        var normalizedEmail = AuthRules.NormalizeEmail(request.Email);
+        // Validate UserType
         if (request.UserType != "client" && request.UserType != "provider")
         {
             throw new ValidationException("UserType must be either 'client' or 'provider'");
         }
 
-        // Hash password
-        var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password, workFactor: 12);
 
         // Create new profile
         var profile = new Profile
         {
             Id = Guid.NewGuid().ToString(),
-            Email = request.Email,
+            Email = normalizedEmail,
+            EmailNormalized = normalizedEmail,
             FullName = request.FullName,
             ContactNumber = request.ContactNumber,
             UserType = request.UserType,
             PasswordHash = passwordHash,
+            SecurityVersion = 1,
             CreatedAt = DateTime.UtcNow
         };
 
-        await _profileRepository.SaveAsync(profile);
+        if (!await _profileRepository.CreateAsync(profile))
+        {
+            throw new ConflictException("User with this email already exists");
+        }
 
         // Generate JWT token
-        var token = _jwtService.GenerateToken(profile.Id, profile.Email, profile.UserType);
+        var token = _jwtService.GenerateToken(profile.Id, profile.Email, profile.UserType, profile.SecurityVersion);
 
-        return new AuthResponse
-        {
-            Token = token,
-            UserId = profile.Id,
-            Email = profile.Email,
-            FullName = profile.FullName,
-            ContactNumber = profile.ContactNumber,
-            UserType = profile.UserType,
-            ExpiresAt = DateTime.UtcNow.AddHours(1)
-        };
+        var expiresAt = DateTime.UtcNow.AddMinutes(15);
+        return AuthResponse.Create(token, expiresAt, profile);
     }
 }

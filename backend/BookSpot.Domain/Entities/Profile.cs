@@ -12,6 +12,9 @@ public class Profile
     public string Email { get; set; } = string.Empty;
 
     [DynamoDBProperty]
+    public string EmailNormalized { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
     public string FullName { get; set; } = string.Empty;
 
     [DynamoDBProperty]
@@ -22,6 +25,9 @@ public class Profile
 
     [DynamoDBProperty]
     public string PasswordHash { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
+    public int SecurityVersion { get; set; } = 1;
 
     [DynamoDBProperty]
     public DateTime CreatedAt { get; set; }

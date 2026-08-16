@@ -1,7 +1,11 @@
-# Stop LocalStack for BookSpot Development
-Write-Host "Stopping LocalStack..." -ForegroundColor Yellow
-
-# Stop and remove containers
-docker-compose down
-
-Write-Host "✓ LocalStack stopped successfully!" -ForegroundColor Green
+# Stop BookSpot LocalStack while preserving developer data.
+$ErrorActionPreference = "Stop"
+$backend = Split-Path -Parent $PSScriptRoot
+Push-Location $backend
+try {
+    bash ./scripts/local-env.sh stop
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+finally {
+    Pop-Location
+}

@@ -1,7 +1,8 @@
 using BookSpot.Application.Abstractions.Services;
+using BookSpot.Application.DTOs.Auth;
+using BookSpot.Application.DTOs.Profiles;
 using BookSpot.Application.Features.Profiles.Commands;
 using BookSpot.Application.Features.Profiles.Queries;
-using BookSpot.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,67 +11,58 @@ namespace BookSpot.API.Controllers;
 
 [ApiController]
 [Route("profiles")]
-public class ProfilesController : ControllerBase
+[Authorize(Policy = "ClientOrProvider")]
+public class ProfilesController(IMediator mediator, IClaimsService claimsService) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    private readonly IClaimsService _claimsService;
-
-    public ProfilesController(IMediator mediator, IClaimsService claimsService)
+    [HttpGet("me")]
+    public async Task<ActionResult<ProfileDto>> GetCurrentUser()
     {
-        _mediator = mediator;
-        _claimsService = claimsService;
+        var id = claimsService.GetCurrentUserId();
+        if (id is null) return Unauthorized();
+        var profile = await mediator.Send(new GetProfileQuery(id));
+        return profile is null ? NotFound() : Ok(ProfileDto.From(profile));
+    }
+
+    [HttpPatch("me")]
+    public async Task<ActionResult<ProfileDto>> PatchCurrentUser([FromBody] UpdateMyProfileRequest request)
+    {
+        var id = claimsService.GetCurrentUserId();
+        if (id is null) return Unauthorized();
+        var profile = await mediator.Send(new UpdateProfileCommand(id, request.FullName, request.ContactNumber));
+        return profile is null ? NotFound() : Ok(ProfileDto.From(profile));
+    }
+
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteCurrentUser()
+    {
+        var id = claimsService.GetCurrentUserId();
+        if (id is null) return Unauthorized();
+        return await mediator.Send(new DeleteProfileCommand(id)) ? NoContent() : NotFound();
     }
 
     [HttpGet("{id}")]
-    [Authorize]
-    public async Task<ActionResult<Profile>> Get(string id)
+    public async Task<ActionResult<ProfileDto>> Get(string id)
     {
-        // Users can only access their own profile or providers can access any profile
-        var currentUserId = _claimsService.GetCurrentUserId();
-        if (currentUserId != id && !_claimsService.IsProvider())
-        {
-            return Forbid();
-        }
-
-        var profile = await _mediator.Send(new GetProfileQuery(id));
-        return profile is null ? NotFound() : Ok(profile);
-    }
-
-    [HttpGet("me")]
-    [Authorize]
-    [Authorize(Policy = "ClientOrProvider")]
-    public async Task<ActionResult<Profile>> GetCurrentUser()
-    {
-        var currentUserId = _claimsService.GetCurrentUserId();
-        if (currentUserId == null)
-        {
-            return Unauthorized();
-        }
-
-        var profile = await _mediator.Send(new GetProfileQuery(currentUserId));
-        return profile is null ? NotFound() : Ok(profile);
-    }
-
-    [HttpPost]
-    public async Task<ActionResult<Profile>> Post([FromBody] CreateProfileCommand command)
-    {
-        var profile = await _mediator.Send(command);
-        return CreatedAtAction(nameof(Get), new { id = profile.Id }, profile);
+        if (!IsSelf(id)) return NotFound();
+        var profile = await mediator.Send(new GetProfileQuery(id));
+        return profile is null ? NotFound() : Ok(ProfileDto.From(profile));
     }
 
     [HttpPut("{id}")]
-    public async Task<ActionResult<Profile>> Put(string id, [FromBody] UpdateProfileCommand command)
+    public async Task<ActionResult<ProfileDto>> Put(string id, [FromBody] UpdateMyProfileRequest request)
     {
-        if (id != command.Id) return BadRequest("Id mismatch");
-        var profile = await _mediator.Send(command);
-        return profile is null ? NotFound() : Ok(profile);
+        if (!IsSelf(id)) return NotFound();
+        var profile = await mediator.Send(new UpdateProfileCommand(id, request.FullName, request.ContactNumber));
+        return profile is null ? NotFound() : Ok(ProfileDto.From(profile));
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        var deleted = await _mediator.Send(new DeleteProfileCommand(id));
-        return deleted ? NoContent() : NotFound();
+        if (!IsSelf(id)) return NotFound();
+        return await mediator.Send(new DeleteProfileCommand(id)) ? NoContent() : NotFound();
     }
-}
 
+    private bool IsSelf(string id) =>
+        string.Equals(claimsService.GetCurrentUserId(), id, StringComparison.Ordinal);
+}

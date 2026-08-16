@@ -45,6 +45,7 @@ builder.Services.AddCors(options =>
 
 // Add HTTP Context Accessor for Claims Service
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
 
 // Add ProblemDetails support
 builder.Services.AddProblemDetails();
@@ -53,7 +54,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<BookSpot.Infrastructure.Middleware.GlobalExceptionHandler>();
 
 // Add JWT Authentication
-var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? "your-super-secret-jwt-key-that-should-be-at-least-32-characters-long";
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
+if (string.IsNullOrWhiteSpace(jwtSecretKey) || Encoding.UTF8.GetByteCount(jwtSecretKey) < 32)
+{
+    throw new InvalidOperationException("Jwt:SecretKey must be configured with at least 32 UTF-8 bytes.");
+}
 var key = Encoding.ASCII.GetBytes(jwtSecretKey);
 
 builder.Services.AddAuthentication(options =>
@@ -74,12 +79,35 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidAudience = builder.Configuration["Jwt:Audience"] ?? "BookSpot",
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
+        ClockSkew = TimeSpan.FromSeconds(30)
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var subject = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var securityVersionValue = context.Principal?.FindFirst("sv")?.Value;
+            if (subject is null || !int.TryParse(securityVersionValue, out var securityVersion))
+            {
+                context.Fail("Invalid session.");
+                return;
+            }
+
+            var profiles = context.HttpContext.RequestServices.GetRequiredService<IProfileRepository>();
+            var profile = await profiles.GetAsync(subject);
+            if (profile is null || profile.SecurityVersion != securityVersion)
+            {
+                context.Fail("Session revoked.");
+            }
+        }
     };
 });
 
 builder.Services.AddAuthorization(options =>
 {
+    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
     // Policy for clients only
     options.AddPolicy("ClientOnly", policy =>
         policy.RequireClaim("user_type", "client"));
@@ -157,17 +185,29 @@ builder.Services.AddSwaggerGen(options =>
 var isDevelopment = builder.Environment.IsDevelopment();
 if (isDevelopment)
 {
-    // LocalStack configuration for development
+    // LocalStack values come from appsettings.Development.json and can be overridden
+    // with standard .NET environment variables (for example AWS__Region).
+    var serviceUrl = builder.Configuration["AWS:ServiceURL"]
+        ?? throw new InvalidOperationException("AWS:ServiceURL is required in Development.");
+    var awsRegion = builder.Configuration["AWS:Region"]
+        ?? throw new InvalidOperationException("AWS:Region is required in Development.");
+    var accessKey = builder.Configuration["AWS:AccessKey"]
+        ?? throw new InvalidOperationException("AWS:AccessKey is required in Development.");
+    var secretKey = builder.Configuration["AWS:SecretKey"]
+        ?? throw new InvalidOperationException("AWS:SecretKey is required in Development.");
+
     var config = new AmazonDynamoDBConfig
     {
-        ServiceURL = "http://localhost:4566",
-        UseHttp = true
+        ServiceURL = serviceUrl,
+        AuthenticationRegion = awsRegion,
+        UseHttp = serviceUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
     };
-    builder.Services.AddSingleton<IAmazonDynamoDB>(new AmazonDynamoDBClient("test", "test", config));
+    builder.Services.AddSingleton<IAmazonDynamoDB>(new AmazonDynamoDBClient(accessKey, secretKey, config));
 }
 else
 {
-    // AWS Lambda configuration for production
+    // Production uses the AWS SDK's role/credential chain. No production credentials
+    // or DynamoDB endpoint are stored in source control.
     builder.Services.AddAWSLambdaHosting(LambdaEventSource.RestApi);
     builder.Services.AddSingleton<IAmazonDynamoDB, AmazonDynamoDBClient>();
 }
@@ -198,6 +238,20 @@ var app = builder.Build();
 
 // Configure exception handling
 app.UseExceptionHandler();
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/auth") ||
+        context.Request.Path.StartsWithSegments("/profiles") ||
+        context.Request.Path.StartsWithSegments("/bookings") ||
+        context.Request.Path.StartsWithSegments("/dashboard"))
+    {
+        context.Response.Headers.CacheControl = "no-store, max-age=0";
+        context.Response.Headers.Pragma = "no-cache";
+    }
+
+    await next();
+});
 
 // Add Private Network Access middleware
 app.Use(async (context, next) =>
@@ -237,19 +291,22 @@ app.Use(async (context, next) =>
 app.UseCors("BookSpotCorsPolicy");
 
 
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "BookSpot API v1");
-    options.RoutePrefix = "swagger";
-    options.DocumentTitle = "BookSpot API Documentation";
-    options.DefaultModelsExpandDepth(2);
-    options.DefaultModelRendering(Swashbuckle.AspNetCore.SwaggerUI.ModelRendering.Example);
-    options.DisplayRequestDuration();
-    options.EnableDeepLinking();
-    options.EnableFilter();
-    options.ShowExtensions();
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "BookSpot API v1");
+        options.RoutePrefix = "swagger";
+        options.DocumentTitle = "BookSpot API Documentation";
+        options.DefaultModelsExpandDepth(2);
+        options.DefaultModelRendering(Swashbuckle.AspNetCore.SwaggerUI.ModelRendering.Example);
+        options.DisplayRequestDuration();
+        options.EnableDeepLinking();
+        options.EnableFilter();
+        options.ShowExtensions();
+    });
+}
 
 // Configure authentication and authorization
 app.UseAuthentication();

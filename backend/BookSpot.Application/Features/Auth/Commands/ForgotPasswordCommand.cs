@@ -3,7 +3,6 @@ using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Domain.Entities;
 using MediatR;
-using Microsoft.Extensions.Configuration;
 
 namespace BookSpot.Application.Features.Auth.Commands;
 
@@ -12,8 +11,7 @@ public record ForgotPasswordCommand(string Email) : IRequest<bool>;
 public class ForgotPasswordHandler(
     IProfileRepository profiles,
     IPasswordResetTokenRepository resetTokens,
-    IEmailService emailService,
-    IConfiguration configuration)
+    IEmailService emailService)
     : IRequestHandler<ForgotPasswordCommand, bool>
 {
     public async Task<bool> Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
@@ -35,15 +33,15 @@ public class ForgotPasswordHandler(
         }
 
         // Generate secure reset token
-        var resetToken = GenerateSecureToken();
+        var resetToken = ResetTokenRules.Generate();
 
         // Create reset token entity
         var passwordResetToken = new PasswordResetToken
         {
-            Token = resetToken,
-            Email = request.Email,
+            Token = ResetTokenRules.Digest(resetToken),
+            Email = AuthRules.NormalizeEmail(request.Email),
             UserId = user.Id,
-            ExpiresAt = DateTime.UtcNow.AddHours(1), // Token expires in 1 hour
+            ExpiresAt = DateTime.UtcNow.AddMinutes(30),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -51,8 +49,8 @@ public class ForgotPasswordHandler(
         await resetTokens.SaveAsync(passwordResetToken);
 
         // Generate reset link
-        var baseUrl = configuration["App:BaseUrl"] ?? "https://localhost:5001";
-        var resetLink = $"{baseUrl}/reset-password?token={resetToken}";
+        var baseUrl = Environment.GetEnvironmentVariable("BOOKSPOT_PUBLIC_BASE_URL") ?? "http://localhost:8080";
+        var resetLink = $"{baseUrl.TrimEnd('/')}/reset-password#{resetToken}";
 
         // Send email
         await emailService.SendPasswordResetEmailAsync(request.Email, resetLink);
@@ -60,11 +58,4 @@ public class ForgotPasswordHandler(
         return true;
     }
 
-    private static string GenerateSecureToken()
-    {
-        using var rng = RandomNumberGenerator.Create();
-        var bytes = new byte[32];
-        rng.GetBytes(bytes);
-        return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
-    }
 }

@@ -1,6 +1,7 @@
 using BookSpot.Application.DTOs.Locations;
 using BookSpot.Application.Features.Locations.Queries;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpot.API.Controllers;
@@ -11,6 +12,7 @@ namespace BookSpot.API.Controllers;
 [ApiController]
 [Route("locations")]
 [Produces("application/json")]
+[AllowAnonymous]
 public class LocationsController : ControllerBase
 {
     private readonly IMediator _mediator;

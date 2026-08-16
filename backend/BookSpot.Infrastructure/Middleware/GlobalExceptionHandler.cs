@@ -59,6 +59,7 @@ public class GlobalExceptionHandler : IExceptionHandler
     private static int GetStatusCode(Exception exception) => exception switch
     {
         NotFoundException => (int)HttpStatusCode.NotFound,
+        ConflictException => (int)HttpStatusCode.Conflict,
         ValidationException => (int)HttpStatusCode.BadRequest,
         BadRequestException => (int)HttpStatusCode.BadRequest,
         ArgumentException => (int)HttpStatusCode.BadRequest,
@@ -72,6 +73,7 @@ public class GlobalExceptionHandler : IExceptionHandler
     private static string GetTitle(Exception exception) => exception switch
     {
         NotFoundException => "Not Found",
+        ConflictException => "Conflict",
         ValidationException => "Validation Error",
         BadRequestException => "Bad Request",
         ArgumentException => "Bad Request",
@@ -87,6 +89,7 @@ public class GlobalExceptionHandler : IExceptionHandler
         400 => "https://tools.ietf.org/html/rfc7231#section-6.5.1",
         401 => "https://tools.ietf.org/html/rfc7235#section-3.1",
         404 => "https://tools.ietf.org/html/rfc7231#section-6.5.4",
+        409 => "https://tools.ietf.org/html/rfc7231#section-6.5.8",
         408 => "https://tools.ietf.org/html/rfc7231#section-6.5.7",
         500 => "https://tools.ietf.org/html/rfc7231#section-6.6.1",
         501 => "https://tools.ietf.org/html/rfc7231#section-6.6.2",

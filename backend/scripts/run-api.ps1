@@ -1,50 +1,19 @@
-# Run BookSpot API with Swagger
-Write-Host "🚀 Starting BookSpot API..." -ForegroundColor Green
-
-# Check if LocalStack is running
-Write-Host "Checking LocalStack..." -ForegroundColor Yellow
+# Run the BookSpot API at http://localhost:5000 using local-only configuration.
+$ErrorActionPreference = "Stop"
+$backend = Split-Path -Parent $PSScriptRoot
+Push-Location $backend
 try {
-    $response = Invoke-RestMethod -Uri "http://localhost:4566/_localstack/health" -Method Get -TimeoutSec 5
-    if ($response.services.dynamodb -eq "available") {
-        Write-Host "✓ LocalStack is running" -ForegroundColor Green
-        
-        # Check if tables exist, create them if not
-        Write-Host "Checking DynamoDB tables..." -ForegroundColor Yellow
-        $env:AWS_ACCESS_KEY_ID = "test"
-        $env:AWS_SECRET_ACCESS_KEY = "test"
-        $env:AWS_DEFAULT_REGION = "eu-west-1"
-        
-        try {
-            $tables = aws dynamodb list-tables --endpoint-url http://localhost:4566 --output json | ConvertFrom-Json
-            if ($tables.TableNames.Count -eq 0) {
-                Write-Host "No tables found. Creating tables..." -ForegroundColor Yellow
-                & ".\scripts\create-tables.ps1"
-            } else {
-                Write-Host "✓ DynamoDB tables found" -ForegroundColor Green
-            }
-        } catch {
-            Write-Host "Creating DynamoDB tables..." -ForegroundColor Yellow
-            & ".\scripts\create-tables.ps1"
-        }
-    } else {
-        Write-Host "⚠️  LocalStack DynamoDB not available" -ForegroundColor Yellow
-    }
-} catch {
-    Write-Host "⚠️  LocalStack not running. Start it with: .\scripts\start-localstack.ps1" -ForegroundColor Yellow
+    bash ./scripts/local-env.sh init
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    $env:ASPNETCORE_ENVIRONMENT = "Development"
+    $env:ASPNETCORE_URLS = "http://localhost:5000"
+    $env:AWS__Region = "us-east-1"
+    $env:AWS__ServiceURL = "http://localhost:4566"
+    $env:AWS__AccessKey = "test"
+    $env:AWS__SecretKey = "test"
+    dotnet run --no-launch-profile --project ./BookSpot.API/BookSpot.API.csproj
 }
-
-# Navigate to API project
-Set-Location "BookSpot.API"
-
-# Set environment variables for development
-$env:ASPNETCORE_ENVIRONMENT = "Development"
-$env:ASPNETCORE_URLS = "http://localhost:5000"
-
-Write-Host "Starting API server..." -ForegroundColor Yellow
-Write-Host "API will be available at: http://localhost:5000" -ForegroundColor Cyan
-Write-Host "Swagger UI will be available at: http://localhost:5000/swagger" -ForegroundColor Cyan
-Write-Host "Press Ctrl+C to stop the server" -ForegroundColor Gray
-Write-Host ""
-
-# Run the API
-dotnet run
+finally {
+    Pop-Location
+}

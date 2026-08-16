@@ -2,12 +2,14 @@ using BookSpot.Application.Features.BusinessHours.Commands;
 using BookSpot.Application.Features.BusinessHours.Queries;
 using BookSpot.Domain.Entities;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpot.API.Controllers;
 
 [ApiController]
 [Route("business-hours")]
+[Authorize(Policy = "ProviderOnly")]
 public class BusinessHoursController : ControllerBase
 {
     private readonly IMediator _mediator;

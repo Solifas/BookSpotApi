@@ -1,198 +1,121 @@
-# BookSpot 📚
+# BookSpot API
 
-A modern appointment booking system built with .NET 8 and AWS Lambda, designed for service-based businesses to manage bookings, clients, and schedules efficiently.
+ASP.NET Core 8 API backed by DynamoDB. The supported local datastore is LocalStack at `http://localhost:4566`; the API runs at `http://localhost:5000`.
 
-## 🚀 Features
+## Local prerequisites
 
-- **User Management**: Separate profiles for clients and service providers
-- **Business Management**: Complete business profile setup with services and hours
-- **Appointment Booking**: Easy-to-use booking system with availability checking
-- **Review System**: Customer feedback and rating system
-- **Real-time Availability**: Dynamic scheduling with conflict prevention
-- **AWS Integration**: Serverless architecture with DynamoDB storage
+- Docker Desktop with Docker Compose v2 (`docker compose version`)
+- .NET 8 SDK (`dotnet --version`)
+- Git Bash, WSL, Linux, or macOS Bash
+- `curl`
 
-## 🏗️ Architecture
+AWS CLI and LocalStack CLI are not required on the host. The scripts run `awslocal` inside the pinned LocalStack container.
 
-- **Backend**: .NET 8 with AWS Lambda Functions
-- **Database**: Amazon DynamoDB
-- **API**: RESTful API with comprehensive endpoints
-- **Local Development**: LocalStack for AWS service emulation
+## Canonical local configuration
 
-## 📋 Prerequisites
+| Setting | Local value |
+|---|---|
+| DynamoDB endpoint | `http://localhost:4566` |
+| Region | `us-east-1` |
+| Access key / secret | `test` / `test` (LocalStack only) |
+| API URL | `http://localhost:5000` |
+| LocalStack image | `localstack/localstack:3.8.1` |
+| Persistent volume | `bookspot-localstack-data` |
 
-- .NET 8 SDK
-- Docker Desktop
-- AWS CLI (optional, for verification)
-- Git
+`BookSpot.API/appsettings.Development.json` contains local-only values. `Program.cs` reads those settings and supports standard .NET overrides such as `AWS__Region` and `AWS__ServiceURL`. Non-development startup uses the AWS SDK role/credential chain; production credentials are not stored in this repository.
 
-## 🛠️ Quick Start
+## Clean startup
 
-### 1. Clone the Repository
+Run these commands from `backend/`:
+
 ```bash
-git clone https://github.com/solifas/bookspot.git
-cd bookspot
+bash ./scripts/local-env.sh start
+bash ./scripts/run-api.sh
 ```
 
-### 2. Start LocalStack (Local Development)
+The first command starts LocalStack, waits for health, creates missing tables, and inserts deterministic sample records only when their IDs do not already exist. The second command rechecks initialization and starts the API with:
+
 ```bash
-# Windows
+dotnet run --no-launch-profile --project BookSpot.API/BookSpot.API.csproj
+```
+
+PowerShell equivalents:
+
+```powershell
 .\scripts\start-localstack.ps1
-
-# Linux/Mac
-./scripts/start-localstack.sh
+.\scripts\run-api.ps1
 ```
 
-### 3. Run the API
+Swagger is available at `http://localhost:5000/swagger`. A seeded public service is available through `GET http://localhost:5000/services`.
+
+## Tables and keys
+
+The schema is derived from the DynamoDB entity annotations used by the API.
+
+| Table | Partition key | Seeded |
+|---|---|---|
+| `profiles` | `Id` (string) | `local-provider-001` |
+| `businesses` | `Id` (string) | `local-business-001` |
+| `services` | `Id` (string) | `local-service-001` |
+| `business_hours` | `Id` (string) | no |
+| `bookings` | `Id` (string) | no |
+| `reviews` | `Id` (string) | no |
+| `password_reset_tokens` | `Token` (string) | no |
+
+No global secondary indexes are currently required by repository queries. Password reset code currently scans by email; the historical `EmailIndex` variable was not used by the actual scan.
+
+Provisioning is idempotent: existing tables are described instead of recreated, and seed records use conditional writes. Rerunning setup does not overwrite developer changes or clear tables.
+
+## Health and verification
+
 ```bash
-cd BookSpot.API
-dotnet run
+# LocalStack health plus table list
+bash ./scripts/local-env.sh status
+
+# Re-run static configuration/schema regression checks
+python scripts/verify-local-setup.py
+
+# Verify a DynamoDB item survives a LocalStack restart; test item is removed
+bash ./scripts/local-env.sh smoke
+
+# API health/surface (both commands print the response and fail on non-2xx status)
+curl --fail --silent --show-error http://localhost:5000/swagger/index.html
+curl --fail --silent --show-error http://localhost:5000/services
 ```
 
-### 4. Test the API
-Use the included `BookSpot.http` file to test all endpoints, or visit the Swagger UI at `https://localhost:7071/swagger`
+The persistence smoke test writes a uniquely named temporary item, restarts LocalStack, reads the item back, and deletes it. It does not modify seed or developer records.
 
-## 📁 Project Structure
+## Stop and reset
 
-```
-BookSpot/
-├── BookSpot.API/              # Main API project
-│   ├── Controllers/           # API controllers
-│   ├── Models/               # Data models
-│   ├── Services/             # Business logic
-│   └── Program.cs            # Application entry point
-├── scripts/                  # Development scripts
-│   ├── start-localstack.ps1  # Start LocalStack (Windows)
-│   ├── stop-localstack.ps1   # Stop LocalStack (Windows)
-│   ├── start-localstack.sh   # Start LocalStack (Linux/Mac)
-│   └── stop-localstack.sh    # Stop LocalStack (Linux/Mac)
-├── localstack-init/          # LocalStack initialization
-│   └── 01-create-dynamodb-tables.sh
-├── docker-compose.yml        # LocalStack configuration
-├── BookSpot.http            # API test collection
-└── LocalStack-Setup.md      # Detailed setup guide
-```
+Normal stop preserves the named volume and all developer data:
 
-## 🗄️ Database Schema
-
-### Tables
-- **profiles** - User profiles (clients and providers)
-- **businesses** - Business information and settings
-- **services** - Services offered by businesses
-- **business_hours** - Operating hours configuration
-- **bookings** - Appointment bookings
-- **reviews** - Customer reviews and ratings
-
-## 🔧 API Endpoints
-
-### Profiles
-- `GET /api/profiles/{id}` - Get user profile
-- `POST /api/profiles` - Create user profile
-- `PUT /api/profiles/{id}` - Update user profile
-
-### Businesses
-- `GET /api/businesses/{id}` - Get business details
-- `POST /api/businesses` - Create business
-- `PUT /api/businesses/{id}` - Update business
-
-### Services
-- `GET /api/businesses/{businessId}/services` - List services
-- `POST /api/businesses/{businessId}/services` - Add service
-- `PUT /api/services/{id}` - Update service
-
-### Bookings
-- `GET /api/bookings/client/{clientId}` - Get client bookings
-- `GET /api/bookings/business/{businessId}` - Get business bookings
-- `POST /api/bookings` - Create booking
-- `PUT /api/bookings/{id}` - Update booking
-
-### Reviews
-- `GET /api/businesses/{businessId}/reviews` - Get business reviews
-- `POST /api/reviews` - Create review
-
-## 🧪 Testing
-
-### Using HTTP File
-The project includes a comprehensive `BookSpot.http` file with test requests for all endpoints. Use it with:
-- Visual Studio Code (REST Client extension)
-- Visual Studio
-- JetBrains Rider
-- Any HTTP client that supports `.http` files
-
-### Manual Testing
-1. Start LocalStack
-2. Run the API
-3. Use the HTTP file or Swagger UI to test endpoints
-4. Verify data persistence by checking DynamoDB tables
-
-## 🌍 Environment Configuration
-
-### Development (LocalStack)
-- **DynamoDB Endpoint**: `http://localhost:4566`
-- **AWS Credentials**: `test` / `test`
-- **Region**: `eu-west-1`
-
-### Production (AWS)
-- Uses standard AWS Lambda and DynamoDB
-- Configure through AWS credentials and environment variables
-
-## 🚀 Deployment
-
-### AWS Lambda Deployment
 ```bash
-# Install Lambda tools
-dotnet tool install -g Amazon.Lambda.Tools
-
-# Deploy to AWS
-cd BookSpot.API
-dotnet lambda deploy-function
+bash ./scripts/local-env.sh stop
 ```
 
-### Docker Deployment
+Reset is intentionally explicit and destructive only to local BookSpot data:
+
 ```bash
-# Build image
-docker build -t bookspot-api .
-
-# Run container
-docker run -p 8080:8080 bookspot-api
+bash ./scripts/local-env.sh reset --confirm
 ```
 
-## 🛠️ Development Workflow
+Reset runs `docker compose down --volumes`, recreates the environment, and reapplies the idempotent schema and seed. Never use reset against AWS or a non-local endpoint.
 
-1. **Start LocalStack**: `.\scripts\start-localstack.ps1`
-2. **Run API**: `dotnet run` in BookSpot.API folder
-3. **Test Endpoints**: Use `BookSpot.http` file
-4. **Verify Data**: Check DynamoDB tables via AWS CLI
-5. **Stop LocalStack**: `.\scripts\stop-localstack.ps1`
+## Common failure recovery
 
-## 📚 Documentation
+- `port 4566 is already allocated`: stop the other LocalStack/container using the port, then rerun `bash ./scripts/local-env.sh start`. Inspect with `docker ps`.
+- Docker daemon unavailable: start Docker Desktop and verify `docker info` succeeds.
+- LocalStack unhealthy: inspect `docker compose logs localstack`; retry `bash ./scripts/local-env.sh start`. A normal stop/start preserves the volume.
+- Tables appear missing: confirm endpoint `http://localhost:4566` and region `us-east-1`, then run `bash ./scripts/local-env.sh init` and `bash ./scripts/local-env.sh status`.
+- API cannot reach DynamoDB: ensure `ASPNETCORE_ENVIRONMENT=Development`, LocalStack is healthy, and no shell override points `AWS__ServiceURL` or `AWS__Region` elsewhere.
+- Initialization interrupted: rerun `bash ./scripts/local-env.sh init`; all operations are safe to repeat.
+- Corrupt disposable local state: use `bash ./scripts/local-env.sh reset --confirm` only after accepting local data loss.
 
-- [LocalStack Setup Guide](LocalStack-Setup.md) - Detailed local development setup
-- [API Documentation](BookSpot.http) - Complete API test collection
-- [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
-- [DynamoDB Documentation](https://docs.aws.amazon.com/dynamodb/)
+## Build
 
-## 🤝 Contributing
+```bash
+dotnet restore BookSpot.sln
+dotnet build BookSpot.sln --no-restore
+```
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- Check the [LocalStack Setup Guide](LocalStack-Setup.md) for common issues
-- Review the [API test collection](BookSpot.http) for usage examples
-- Open an issue for bugs or feature requests
-
-## 🏷️ Version
-
-Current version: 1.0.0
-
----
-
-Built with ❤️ using .NET 8 and AWS Lambda
+Deployment to AWS is separate from this local workflow and requires human-approved credentials and configuration.

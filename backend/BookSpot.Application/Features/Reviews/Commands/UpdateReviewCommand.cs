@@ -1,5 +1,6 @@
 using BookSpot.Domain.Entities;
 using BookSpot.Application.Abstractions.Repositories;
+using BookSpot.Application.Abstractions.Services;
 using MediatR;
 
 namespace BookSpot.Application.Features.Reviews.Commands;
@@ -9,12 +10,22 @@ public record UpdateReviewCommand(string Id, int Rating, string Comment) : IRequ
 public class UpdateReviewHandler : IRequestHandler<UpdateReviewCommand, Review?>
 {
     private readonly IReviewRepository _reviews;
-    public UpdateReviewHandler(IReviewRepository reviews) => _reviews = reviews;
+    private readonly IBookingRepository _bookings;
+    private readonly IClaimsService _claims;
+    public UpdateReviewHandler(IReviewRepository reviews, IBookingRepository bookings, IClaimsService claims)
+    {
+        _reviews = reviews;
+        _bookings = bookings;
+        _claims = claims;
+    }
 
     public async Task<Review?> Handle(UpdateReviewCommand request, CancellationToken cancellationToken)
     {
         var existing = await _reviews.GetAsync(request.Id);
         if (existing is null) return null;
+        var booking = await _bookings.GetAsync(existing.BookingId);
+        if (booking is null || !_claims.IsClient() ||
+            !string.Equals(booking.ClientId, _claims.GetCurrentUserId(), StringComparison.Ordinal)) return null;
 
         existing.Rating = request.Rating;
         existing.Comment = request.Comment;

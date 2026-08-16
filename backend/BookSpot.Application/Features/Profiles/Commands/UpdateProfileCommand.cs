@@ -4,22 +4,18 @@ using MediatR;
 
 namespace BookSpot.Application.Features.Profiles.Commands;
 
-public record UpdateProfileCommand(string Id, string Email, string UserType) : IRequest<Profile?>;
+public record UpdateProfileCommand(string Id, string? FullName, string? ContactNumber) : IRequest<Profile?>;
 
-public class UpdateProfileHandler : IRequestHandler<UpdateProfileCommand, Profile?>
+public class UpdateProfileHandler(IProfileRepository profiles) : IRequestHandler<UpdateProfileCommand, Profile?>
 {
-    private readonly IProfileRepository _profiles;
-    public UpdateProfileHandler(IProfileRepository profiles) => _profiles = profiles;
-
     public async Task<Profile?> Handle(UpdateProfileCommand request, CancellationToken cancellationToken)
     {
-        var existing = await _profiles.GetAsync(request.Id);
+        var existing = await profiles.GetAsync(request.Id);
         if (existing is null) return null;
 
-        existing.Email = request.Email;
-        existing.UserType = request.UserType;
-
-        await _profiles.SaveAsync(existing);
+        if (request.FullName is not null) existing.FullName = request.FullName.Trim();
+        existing.ContactNumber = request.ContactNumber;
+        await profiles.SaveAsync(existing);
         return existing;
     }
 }

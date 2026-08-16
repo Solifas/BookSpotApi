@@ -1,4 +1,5 @@
 using BookSpot.Application.DTOs.Bookings;
+using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Features.Bookings.Commands;
 using BookSpot.Application.Features.Bookings.Queries;
 using BookSpot.Domain.Entities;
@@ -14,10 +15,16 @@ namespace BookSpot.API.Controllers;
 [ApiController]
 [Route("bookings")]
 [Produces("application/json")]
+[Authorize]
 public class BookingsController : ControllerBase
 {
     private readonly IMediator _mediator;
-    public BookingsController(IMediator mediator) => _mediator = mediator;
+    private readonly IClaimsService _claims;
+    public BookingsController(IMediator mediator, IClaimsService claims)
+    {
+        _mediator = mediator;
+        _claims = claims;
+    }
 
     /// <summary>
     /// Get booking by ID
@@ -57,6 +64,7 @@ public class BookingsController : ControllerBase
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null)
     {
+        if (!string.Equals(_claims.GetCurrentUserId(), providerId, StringComparison.Ordinal)) return NotFound();
         var query = new GetProviderBookingsQuery(providerId, status, startDate, endDate);
         var bookings = await _mediator.Send(query);
         return Ok(bookings);
@@ -88,6 +96,7 @@ public class BookingsController : ControllerBase
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null)
     {
+        if (!string.Equals(_claims.GetCurrentUserId(), clientId, StringComparison.Ordinal)) return NotFound();
         var query = new GetClientBookingsQuery(clientId, status, startDate, endDate);
         var bookings = await _mediator.Send(query);
         return Ok(bookings);
@@ -96,63 +105,52 @@ public class BookingsController : ControllerBase
     /// <summary>
     /// Create a new booking
     /// </summary>
-    /// <param name="command">Booking creation details</param>
+    /// <param name="request">Booking creation details</param>
+    /// <param name="idempotencyKey">Unpredictable key used to replay the same booking request safely</param>
     /// <returns>Created booking</returns>
     /// <response code="201">Booking created successfully</response>
     /// <response code="400">Invalid input or validation errors</response>
     /// <response code="401">Unauthorized - JWT token required</response>
     /// <response code="403">Forbidden - Only clients can create bookings</response>
     [HttpPost]
-    [Authorize(Policy = "ClientOrProvider")]
-    [ProducesResponseType(typeof(Booking), 201)]
+    [Authorize(Policy = "ClientOnly")]
+    [ProducesResponseType(typeof(BookingMutationResultDto), 201)]
     [ProducesResponseType(400)]
     [ProducesResponseType(401)]
     [ProducesResponseType(403)]
-    public async Task<ActionResult<Booking>> Post([FromBody] CreateBookingCommand command)
+    public async Task<ActionResult<BookingMutationResultDto>> Post(
+        [FromBody] CreateBookingRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
     {
-        var booking = await _mediator.Send(command);
-        return CreatedAtAction(nameof(Get), new { id = booking.Id }, booking);
+        if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length is < 16 or > 128)
+        {
+            return BadRequest();
+        }
+
+        var booking = await _mediator.Send(new CreateBookingCommand(request.ServiceId, request.StartTime, idempotencyKey));
+        return CreatedAtAction(nameof(Get), new { id = booking.Id }, BookingMutationResultDto.From(booking, "client"));
     }
 
     /// <summary>
-    /// Update an existing booking
+    /// Applies an authorized, version-checked action to a booking.
     /// </summary>
-    /// <param name="id">Booking ID</param>
-    /// <param name="command">Booking update details</param>
-    /// <returns>Updated booking</returns>
-    /// <response code="200">Booking updated successfully</response>
-    /// <response code="400">Invalid input or ID mismatch</response>
-    /// <response code="404">Booking not found</response>
-    /// <response code="401">Unauthorized - JWT token required</response>
-    [HttpPut("{id}")]
+    [HttpPost("{id}/actions")]
     [Authorize(Policy = "ClientOrProvider")]
-    [ProducesResponseType(typeof(Booking), 200)]
+    [ProducesResponseType(typeof(BookingMutationResultDto), 200)]
     [ProducesResponseType(400)]
     [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    public async Task<ActionResult<Booking>> Put(string id, [FromBody] UpdateBookingCommand command)
+    [ProducesResponseType(409)]
+    public async Task<ActionResult<BookingMutationResultDto>> ApplyAction(
+        string id,
+        [FromBody] BookingActionRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
     {
-        if (id != command.Id) return BadRequest("Id mismatch");
-        var updated = await _mediator.Send(command);
-        return updated is null ? NotFound() : Ok(updated);
-    }
-
-    /// <summary>
-    /// Delete a booking
-    /// </summary>
-    /// <param name="id">Booking ID</param>
-    /// <returns>No content</returns>
-    /// <response code="204">Booking deleted successfully</response>
-    /// <response code="404">Booking not found</response>
-    /// <response code="401">Unauthorized - JWT token required</response>
-    [HttpDelete("{id}")]
-    [Authorize(Policy = "ClientOrProvider")]
-    [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    public async Task<IActionResult> Delete(string id)
-    {
-        var deleted = await _mediator.Send(new DeleteBookingCommand(id));
-        return deleted ? NoContent() : NotFound();
+        var booking = await _mediator.Send(new ApplyBookingActionCommand(
+            id,
+            request.Action,
+            request.ExpectedVersion,
+            request.StartTime,
+            idempotencyKey));
+        return Ok(BookingMutationResultDto.From(booking, _claims.GetCurrentUserType()!));
     }
 }

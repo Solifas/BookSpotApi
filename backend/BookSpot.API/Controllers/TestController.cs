@@ -5,7 +5,7 @@ namespace BookSpot.API.Controllers;
 
 [ApiController]
 [Route("test")]
-public class TestController : ControllerBase
+public class TestController(IWebHostEnvironment environment) : ControllerBase
 {
     /// <summary>
     /// Test endpoint to demonstrate exception handling
@@ -13,6 +13,7 @@ public class TestController : ControllerBase
     [HttpGet("exception/{type}")]
     public IActionResult TestException(string type)
     {
+        if (!environment.IsDevelopment()) return NotFound();
         return type.ToLower() switch
         {
             "notfound" => throw new NotFoundException("Test resource", "123"),
@@ -29,6 +30,7 @@ public class TestController : ControllerBase
     [HttpGet("validation-details")]
     public IActionResult TestValidationWithDetails()
     {
+        if (!environment.IsDevelopment()) return NotFound();
         var errors = new Dictionary<string, string[]>
         {
             { "Name", new[] { "Name is required", "Name must be at least 3 characters" } },

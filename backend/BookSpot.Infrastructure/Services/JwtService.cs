@@ -21,10 +21,10 @@ public class JwtService : IJwtService
         _secretKey = _configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");
         _issuer = _configuration["Jwt:Issuer"] ?? "BookSpot";
         _audience = _configuration["Jwt:Audience"] ?? "BookSpot";
-        _expirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60");
+        _expirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "15");
     }
 
-    public string GenerateToken(string userId, string email, string userType)
+    public string GenerateToken(string userId, string email, string userType, int securityVersion)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_secretKey);
@@ -34,7 +34,9 @@ public class JwtService : IJwtService
             new(ClaimTypes.NameIdentifier, userId),
             new(ClaimTypes.Email, email),
             new(ClaimTypes.Role, userType),
-            new("user_type", userType)
+            new("user_type", userType),
+            new("sv", securityVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
         };
 
         var tokenDescriptor = new SecurityTokenDescriptor
@@ -66,7 +68,7 @@ public class JwtService : IJwtService
                 ValidateAudience = true,
                 ValidAudience = _audience,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
+                ClockSkew = TimeSpan.FromSeconds(30)
             };
 
             var principal = tokenHandler.ValidateToken(token, validationParameters, out _);

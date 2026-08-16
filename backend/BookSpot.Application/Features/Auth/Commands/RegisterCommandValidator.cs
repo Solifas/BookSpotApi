@@ -31,14 +31,8 @@ public class RegisterCommandValidator : AbstractValidator<RegisterCommand>
             .WithMessage("Contact number contains invalid characters. Only numbers, spaces, hyphens, parentheses, periods, and plus sign are allowed.");
 
         RuleFor(x => x.Password)
-            .NotEmpty()
-            .WithMessage("Password is required.")
-            .MinimumLength(8)
-            .WithMessage("Password must be at least 8 characters long.")
-            .MaximumLength(100)
-            .WithMessage("Password cannot exceed 100 characters.")
-            .Matches(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]")
-            .WithMessage("Password must contain at least one lowercase letter, one uppercase letter, one digit, and one special character (@$!%*?&).");
+            .Must(AuthRules.IsPasswordAllowed)
+            .WithMessage("Password does not satisfy the password policy.");
 
         RuleFor(x => x.UserType)
             .NotEmpty()

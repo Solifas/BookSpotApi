@@ -50,10 +50,10 @@ public class UpdateServiceHandler : IRequestHandler<UpdateServiceCommand, Servic
         var existing = await _services.GetAsync(request.Id);
         if (existing is null) return null;
 
-        // Validate that the current user owns the service
-        if (existing.ProviderId != currentUserId)
+        var business = await _businesses.GetAsync(existing.BusinessId);
+        if (business is null || !string.Equals(business.ProviderId, currentUserId, StringComparison.Ordinal))
         {
-            throw new ValidationException("You can only update your own services.");
+            return null;
         }
 
         // Update only the fields that are provided (partial update)

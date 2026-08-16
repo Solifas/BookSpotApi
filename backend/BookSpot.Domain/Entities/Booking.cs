@@ -12,13 +12,19 @@ public class Booking
     public string ServiceId { get; set; } = string.Empty;
 
     [DynamoDBProperty]
+    public string BusinessId { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
     public string ClientId { get; set; } = string.Empty;
 
     [DynamoDBProperty]
     public string ProviderId { get; set; } = string.Empty;
 
     [DynamoDBProperty]
-    public string ProviderName { get; set; }
+    public string ProviderProfileId { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
+    public string ProviderName { get; set; } = string.Empty;
 
     [DynamoDBProperty]
     public DateTime StartTime { get; set; }
@@ -31,4 +37,10 @@ public class Booking
 
     [DynamoDBProperty]
     public DateTime CreatedAt { get; set; }
+
+    [DynamoDBProperty]
+    public DateTime UpdatedAt { get; set; }
+
+    [DynamoDBProperty]
+    public int Version { get; set; } = 1;
 }

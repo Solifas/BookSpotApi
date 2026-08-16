@@ -31,7 +31,7 @@ public class ResetPasswordHandler : IRequestHandler<ResetPasswordCommand, bool>
     public async Task<bool> Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
     {
         // Validate token
-        var resetToken = await _resetTokens.GetAsync(request.Token);
+        var resetToken = await _resetTokens.GetAsync(ResetTokenRules.Digest(request.Token));
         if (resetToken == null)
         {
             throw new ValidationException("Invalid or expired reset token.");
@@ -57,22 +57,17 @@ public class ResetPasswordHandler : IRequestHandler<ResetPasswordCommand, bool>
             throw new ValidationException("User not found.");
         }
 
-        // Validate new password
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+        if (!AuthRules.IsPasswordAllowed(request.NewPassword))
         {
-            throw new ValidationException("Password must be at least 6 characters long.");
+            throw new ValidationException("Password does not satisfy the password policy.");
         }
 
-        // Hash new password
-        var hashedPassword = HashPassword(request.NewPassword);
+        var hashedPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, workFactor: 12);
 
-        // Update user password
-        user.PasswordHash = hashedPassword;
-        await _profiles.SaveAsync(user);
-
-        // Mark token as used
-        resetToken.IsUsed = true;
-        await _resetTokens.SaveAsync(resetToken);
+        if (!await _resetTokens.TryConsumeAsync(resetToken.Token, user.Id, hashedPassword, user.SecurityVersion))
+        {
+            throw new ValidationException("Invalid or expired reset token.");
+        }
 
         // Send confirmation email
         await _emailService.SendPasswordResetConfirmationAsync(user.Email);
@@ -80,10 +75,4 @@ public class ResetPasswordHandler : IRequestHandler<ResetPasswordCommand, bool>
         return true;
     }
 
-    private static string HashPassword(string password)
-    {
-        using var sha256 = SHA256.Create();
-        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-        return Convert.ToBase64String(hashedBytes);
-    }
 }
