@@ -3,6 +3,7 @@ using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Exceptions;
 using BookSpot.Application.Features.Businesses.Commands;
 using BookSpot.Application.Features.BusinessHours.Commands;
+using BookSpot.Application.Features.Bookings.Commands;
 using BookSpot.Application.Features.Reviews.Commands;
 using BookSpot.Application.Features.Services.Commands;
 using BookSpot.Domain.Entities;
@@ -24,6 +25,21 @@ public class OwnershipMutationTests
 
         Assert.False(deleted);
         businesses.Verify(repository => repository.DeleteAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateBusiness_CrossAccountIsConcealedAndDoesNotWrite()
+    {
+        var businesses = new Mock<IBusinessRepository>();
+        businesses.Setup(repository => repository.GetAsync("business-1"))
+            .ReturnsAsync(new Business { Id = "business-1", ProviderId = "provider-1" });
+        var handler = new UpdateBusinessHandler(businesses.Object, Claims("provider-2", "provider").Object);
+
+        var updated = await handler.Handle(new UpdateBusinessCommand("business-1", BusinessName: "Hijacked"),
+            CancellationToken.None);
+
+        Assert.Null(updated);
+        businesses.Verify(repository => repository.SaveAsync(It.IsAny<Business>()), Times.Never);
     }
 
     [Fact]
@@ -86,6 +102,55 @@ public class OwnershipMutationTests
     }
 
     [Fact]
+    public async Task CreateReview_RejectsSecondReviewForBooking()
+    {
+        var reviews = new Mock<IReviewRepository>();
+        reviews.Setup(repository => repository.GetByBookingAsync("booking-1"))
+            .ReturnsAsync(new Review { Id = "review-1", BookingId = "booking-1" });
+        var bookings = new Mock<IBookingRepository>();
+        bookings.Setup(repository => repository.GetAsync("booking-1")).ReturnsAsync(new Booking
+        {
+            Id = "booking-1",
+            ClientId = "client-1",
+            Status = "completed"
+        });
+        var handler = new CreateReviewHandler(reviews.Object, bookings.Object, Claims("client-1", "client").Object);
+
+        await Assert.ThrowsAsync<ConflictException>(() => handler.Handle(
+            new CreateReviewCommand("booking-1", 5, "Great"), CancellationToken.None));
+
+        reviews.Verify(repository => repository.SaveAsync(It.IsAny<Review>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateBooking_RejectsSlotOutsidePersistedBusinessHours()
+    {
+        var bookings = new Mock<IBookingRepository>();
+        var services = new Mock<IServiceRepository>();
+        services.Setup(repository => repository.GetAsync("service-1")).ReturnsAsync(new Service
+        {
+            Id = "service-1", BusinessId = "business-1", DurationMinutes = 30, IsActive = true
+        });
+        var businesses = new Mock<IBusinessRepository>();
+        businesses.Setup(repository => repository.GetAsync("business-1")).ReturnsAsync(new Business
+        {
+            Id = "business-1", ProviderId = "provider-1", IsActive = true, TimeZone = "UTC"
+        });
+        var hours = new Mock<IBusinessHourRepository>();
+        hours.Setup(repository => repository.GetByBusinessAsync("business-1")).ReturnsAsync(
+            new[] { new BusinessHour { BusinessId = "business-1", DayOfWeek = 1, OpenTime = "09:00", CloseTime = "17:00" } });
+        var start = NextWeekday(DayOfWeek.Monday).AddHours(3);
+        var handler = new CreateBookingHandler(bookings.Object, services.Object, Mock.Of<IProfileRepository>(),
+            businesses.Object, hours.Object, Claims("client-1", "client").Object);
+
+        await Assert.ThrowsAsync<ConflictException>(() => handler.Handle(
+            new CreateBookingCommand("service-1", start, "0123456789abcdef"), CancellationToken.None));
+
+        bookings.Verify(repository => repository.CreateAsync(It.IsAny<Booking>(), It.IsAny<string>(), It.IsAny<string>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task DeleteReview_OnlyBookingClientCanDelete()
     {
         var reviews = new Mock<IReviewRepository>();
@@ -114,5 +179,12 @@ public class OwnershipMutationTests
         claims.Setup(service => service.IsProvider()).Returns(role == "provider");
         claims.Setup(service => service.IsClient()).Returns(role == "client");
         return claims;
+    }
+
+    private static DateTimeOffset NextWeekday(DayOfWeek day)
+    {
+        var date = DateTimeOffset.UtcNow.Date.AddDays(1);
+        while (date.DayOfWeek != day) date = date.AddDays(1);
+        return new DateTimeOffset(date, TimeSpan.Zero);
     }
 }

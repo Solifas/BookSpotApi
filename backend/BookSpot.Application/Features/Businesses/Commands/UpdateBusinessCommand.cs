@@ -51,7 +51,7 @@ public class UpdateBusinessHandler : IRequestHandler<UpdateBusinessCommand, Busi
         // Validate that the current user owns the business
         if (existing.ProviderId != currentUserId)
         {
-            throw new ValidationException("You can only update your own businesses.");
+            return null;
         }
 
         // Update only the fields that are provided (partial update)

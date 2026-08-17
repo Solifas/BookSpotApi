@@ -16,4 +16,10 @@ public class Review
 
     [DynamoDBProperty]
     public string Comment { get; set; } = string.Empty;
+
+    [DynamoDBProperty]
+    public DateTime CreatedAt { get; set; }
+
+    [DynamoDBProperty]
+    public DateTime? UpdatedAt { get; set; }
 }

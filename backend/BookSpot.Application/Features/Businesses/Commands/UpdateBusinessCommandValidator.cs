@@ -10,33 +10,36 @@ public class UpdateBusinessCommandValidator : AbstractValidator<UpdateBusinessCo
         RuleFor(x => x.Id)
             .NotEmpty()
             .WithMessage("Business ID is required.")
-            .Must(BeValidGuid)
-            .WithMessage("Business ID must be a valid GUID format.");
+            .MaximumLength(128)
+            .WithMessage("Business ID cannot exceed 128 characters.")
+            .Must(id => id.All(character => !char.IsControl(character)))
+            .WithMessage("Business ID contains invalid characters.");
 
         // All other fields are optional, but validate format when provided
         RuleFor(x => x.BusinessName)
-            .Length(2, 100)
-            .WithMessage("Business name must be between 2 and 100 characters.")
-            .Matches(@"^[a-zA-Z0-9\s\-&'.,()]+$")
-            .WithMessage("Business name contains invalid characters.")
-            .When(x => !string.IsNullOrEmpty(x.BusinessName));
+            .NotEmpty()
+            .MaximumLength(100)
+            .Must(value => value!.All(character => !char.IsControl(character)))
+            .When(x => x.BusinessName is not null);
 
         RuleFor(x => x.Description)
-            .Length(10, 1000)
-            .WithMessage("Business description must be between 10 and 1000 characters.")
-            .When(x => !string.IsNullOrEmpty(x.Description));
+            .NotEmpty()
+            .MaximumLength(2000)
+            .Must(value => value!.All(character => character == '\n' || !char.IsControl(character)))
+            .When(x => x.Description is not null);
 
         RuleFor(x => x.Address)
-            .Length(5, 200)
-            .WithMessage("Business address must be between 5 and 200 characters.")
-            .When(x => !string.IsNullOrEmpty(x.Address));
+            .NotEmpty()
+            .MaximumLength(250)
+            .Must(value => value!.All(character => !char.IsControl(character)))
+            .When(x => x.Address is not null);
 
         RuleFor(x => x.Phone)
-            .Length(10, 20)
-            .WithMessage("Phone number must be between 10 and 20 characters.")
-            .Matches(@"^[\+]?[0-9\s\-\(\)\.]+$")
-            .WithMessage("Phone number contains invalid characters. Only numbers, spaces, hyphens, parentheses, periods, and plus sign are allowed.")
-            .When(x => !string.IsNullOrEmpty(x.Phone));
+            .NotEmpty()
+            .MaximumLength(32)
+            .Matches(@"^\+?[0-9][0-9 ()-]{5,30}[0-9]$")
+            .WithMessage("Phone number has an invalid format.")
+            .When(x => x.Phone is not null);
 
         RuleFor(x => x.Email)
             .EmailAddress()
@@ -46,30 +49,29 @@ public class UpdateBusinessCommandValidator : AbstractValidator<UpdateBusinessCo
             .When(x => !string.IsNullOrEmpty(x.Email));
 
         RuleFor(x => x.City)
-            .Length(2, 50)
-            .WithMessage("City must be between 2 and 50 characters.")
-            .Matches(@"^[a-zA-Z\s\-'.,()]+$")
-            .WithMessage("City contains invalid characters.")
-            .When(x => !string.IsNullOrEmpty(x.City));
+            .NotEmpty()
+            .MaximumLength(100)
+            .Must(value => value!.All(character => !char.IsControl(character)))
+            .When(x => x.City is not null);
 
         RuleFor(x => x.Website)
-            .Must(BeValidUrl)
-            .WithMessage("Website must be a valid URL format.")
+            .Must(BeValidHttpsUrl)
+            .WithMessage("Website must be an absolute HTTPS URL.")
             .When(x => !string.IsNullOrEmpty(x.Website));
 
         RuleFor(x => x.ImageUrl)
-            .Must(BeValidUrl)
-            .WithMessage("Image URL must be a valid URL format.")
+            .Must(BeValidHttpsUrl)
+            .WithMessage("Image URL must be an absolute HTTPS URL.")
             .When(x => !string.IsNullOrEmpty(x.ImageUrl));
     }
 
-    private static bool BeValidGuid(string id)
-    {
-        return Guid.TryParse(id, out _);
-    }
 
-    private static bool BeValidUrl(string? url)
+    private static bool BeValidHttpsUrl(string? url)
     {
-        return Uri.TryCreate(url, UriKind.Absolute, out _);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)) return false;
+        var allowedScheme = parsed.Scheme == Uri.UriSchemeHttps ||
+            (parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback);
+        return allowedScheme && string.IsNullOrEmpty(parsed.UserInfo) && string.IsNullOrEmpty(parsed.Fragment) &&
+               parsed.IsDefaultPort && url!.Length <= 2048;
     }
 }

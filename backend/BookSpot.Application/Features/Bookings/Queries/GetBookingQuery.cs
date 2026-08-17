@@ -22,7 +22,8 @@ public class GetBookingHandler(
         if (string.Equals(booking.ClientId, subject, StringComparison.Ordinal)) return booking;
 
         var business = await businesses.GetAsync(booking.BusinessId);
-        return business is not null && string.Equals(business.ProviderId, subject, StringComparison.Ordinal)
+        var providerProfileId = business?.ProviderId ?? booking.ProviderProfileId;
+        return string.Equals(providerProfileId, subject, StringComparison.Ordinal)
             ? booking
             : null;
     }

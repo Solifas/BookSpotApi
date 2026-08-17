@@ -9,8 +9,8 @@ public class CreateBusinessHourCommandValidator : AbstractValidator<CreateBusine
         RuleFor(x => x.BusinessId)
             .NotEmpty()
             .WithMessage("Business ID is required.")
-            .Must(BeValidGuid)
-            .WithMessage("Business ID must be a valid GUID format.");
+            .Must(BeValidOpaqueId)
+            .WithMessage("Business ID must be 1-128 UTF-8 bytes without control characters.");
 
         RuleFor(x => x.DayOfWeek)
             .InclusiveBetween(0, 6)
@@ -43,14 +43,13 @@ public class CreateBusinessHourCommandValidator : AbstractValidator<CreateBusine
             .WithMessage("Business hours cannot exceed 16 hours per day.");
     }
 
-    private static bool BeValidGuid(string id)
-    {
-        return Guid.TryParse(id, out _);
-    }
+    private static bool BeValidOpaqueId(string id) =>
+        System.Text.Encoding.UTF8.GetByteCount(id) <= 128 && id.All(character => !char.IsControl(character));
 
     private static bool BeValidTimeFormat(string time)
     {
-        return TimeSpan.TryParse(time, out _);
+        return TimeOnly.TryParseExact(time, "HH:mm", System.Globalization.CultureInfo.InvariantCulture,
+                   System.Globalization.DateTimeStyles.None, out var parsed) && parsed.Minute % 15 == 0;
     }
 
     private static bool HaveValidTimeRange(CreateBusinessHourCommand command)
@@ -61,12 +60,6 @@ public class CreateBusinessHourCommandValidator : AbstractValidator<CreateBusine
         if (TimeSpan.TryParse(command.OpenTime, out var openTime) &&
             TimeSpan.TryParse(command.CloseTime, out var closeTime))
         {
-            // Handle overnight hours (e.g., 22:00 to 02:00)
-            if (closeTime < openTime)
-            {
-                closeTime = closeTime.Add(TimeSpan.FromDays(1));
-            }
-
             return closeTime > openTime;
         }
 
@@ -81,12 +74,6 @@ public class CreateBusinessHourCommandValidator : AbstractValidator<CreateBusine
         if (TimeSpan.TryParse(command.OpenTime, out var openTime) &&
             TimeSpan.TryParse(command.CloseTime, out var closeTime))
         {
-            // Handle overnight hours
-            if (closeTime < openTime)
-            {
-                closeTime = closeTime.Add(TimeSpan.FromDays(1));
-            }
-
             var duration = closeTime - openTime;
             return duration <= TimeSpan.FromHours(16);
         }

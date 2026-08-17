@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using BookSpot.Application.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +10,7 @@ namespace BookSpot.Infrastructure.Middleware;
 
 public class GlobalExceptionHandler : IExceptionHandler
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ILogger<GlobalExceptionHandler> _logger;
 
     public GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger)
@@ -21,78 +23,65 @@ public class GlobalExceptionHandler : IExceptionHandler
         Exception exception,
         CancellationToken cancellationToken)
     {
-        _logger.LogError(exception, "An unhandled exception occurred: {Message}", exception.Message);
+        _logger.LogError("Unhandled {ExceptionType} (trace {TraceId})",
+            exception.GetType().Name, httpContext.TraceIdentifier);
 
         var problemDetails = CreateProblemDetails(httpContext, exception);
-
-        httpContext.Response.StatusCode = problemDetails.Status ?? (int)HttpStatusCode.InternalServerError;
+        httpContext.Response.StatusCode = problemDetails.Status ?? StatusCodes.Status500InternalServerError;
         httpContext.Response.ContentType = "application/problem+json";
-
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
-
+        await JsonSerializer.SerializeAsync(httpContext.Response.Body, problemDetails, JsonOptions, cancellationToken);
         return true;
     }
 
     private static ProblemDetails CreateProblemDetails(HttpContext context, Exception exception)
     {
-        var statusCode = GetStatusCode(exception);
-        var title = GetTitle(exception);
+        var (status, title, detail, code) = exception switch
+        {
+            ValidationException => (StatusCodes.Status400BadRequest, "Validation failed",
+                "One or more request fields are invalid.", "validation_failed"),
+            BadRequestException or ArgumentException or InvalidOperationException =>
+                (StatusCodes.Status400BadRequest, "Invalid request", "The request is invalid.", "invalid_request"),
+            UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Authentication required",
+                "Authentication is required to access this resource.", "authentication_required"),
+            NotFoundException => (StatusCodes.Status404NotFound, "Resource not found",
+                "The requested resource was not found.", "resource_not_found"),
+            ConflictException conflict => (StatusCodes.Status409Conflict, "Conflict",
+                SafeConflictDetail(conflict), ConflictCode(conflict)),
+            TimeoutException => (StatusCodes.Status503ServiceUnavailable, "Persistence unavailable",
+                "The service is temporarily unavailable.", "persistence_unavailable"),
+            NotImplementedException => ((int)HttpStatusCode.NotImplemented, "Not implemented",
+                "The requested capability is not implemented.", "not_implemented"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal server error",
+                "An unexpected error occurred.", "internal_server_error")
+        };
 
         var problemDetails = new ProblemDetails
         {
-            Status = statusCode,
+            Status = status,
             Title = title,
-            Detail = exception.Message,
-            Instance = context.Request.Path,
-            Type = GetTypeUrl(statusCode)
+            Detail = detail,
+            Instance = SafeInstance(context),
+            Type = $"https://bookspot.example/problems/{code.Replace('_', '-')}"
         };
-
-        // Add validation errors for ValidationException
+        problemDetails.Extensions["code"] = code;
+        problemDetails.Extensions["traceId"] = context.TraceIdentifier;
         if (exception is ValidationException validationException && validationException.Errors.Any())
-        {
             problemDetails.Extensions["errors"] = validationException.Errors;
-        }
-
         return problemDetails;
     }
 
-    private static int GetStatusCode(Exception exception) => exception switch
+    private static string SafeInstance(HttpContext context)
     {
-        NotFoundException => (int)HttpStatusCode.NotFound,
-        ConflictException => (int)HttpStatusCode.Conflict,
-        ValidationException => (int)HttpStatusCode.BadRequest,
-        BadRequestException => (int)HttpStatusCode.BadRequest,
-        ArgumentException => (int)HttpStatusCode.BadRequest,
-        InvalidOperationException => (int)HttpStatusCode.BadRequest,
-        UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
-        NotImplementedException => (int)HttpStatusCode.NotImplemented,
-        TimeoutException => (int)HttpStatusCode.RequestTimeout,
-        _ => (int)HttpStatusCode.InternalServerError
-    };
+        var route = (context.GetEndpoint() as Microsoft.AspNetCore.Routing.RouteEndpoint)?.RoutePattern.RawText;
+        return string.IsNullOrWhiteSpace(route) ? "/" : $"/{route.TrimStart('/')}";
+    }
 
-    private static string GetTitle(Exception exception) => exception switch
-    {
-        NotFoundException => "Not Found",
-        ConflictException => "Conflict",
-        ValidationException => "Validation Error",
-        BadRequestException => "Bad Request",
-        ArgumentException => "Bad Request",
-        InvalidOperationException => "Bad Request",
-        UnauthorizedAccessException => "Unauthorized",
-        NotImplementedException => "Not Implemented",
-        TimeoutException => "Request Timeout",
-        _ => "Internal Server Error"
-    };
+    private static string ConflictCode(ConflictException exception) => exception.Code;
 
-    private static string GetTypeUrl(int statusCode) => statusCode switch
+    private static string SafeConflictDetail(ConflictException exception) => ConflictCode(exception) switch
     {
-        400 => "https://tools.ietf.org/html/rfc7231#section-6.5.1",
-        401 => "https://tools.ietf.org/html/rfc7235#section-3.1",
-        404 => "https://tools.ietf.org/html/rfc7231#section-6.5.4",
-        409 => "https://tools.ietf.org/html/rfc7231#section-6.5.8",
-        408 => "https://tools.ietf.org/html/rfc7231#section-6.5.7",
-        500 => "https://tools.ietf.org/html/rfc7231#section-6.6.1",
-        501 => "https://tools.ietf.org/html/rfc7231#section-6.6.2",
-        _ => "https://tools.ietf.org/html/rfc7231#section-6.6.1"
+        "booking_slot_conflict" => "The requested booking slot is no longer available.",
+        "idempotency_key_reused" => "The idempotency key was already used for a different request.",
+        _ => "The requested operation conflicts with the current resource state."
     };
 }

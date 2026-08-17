@@ -9,54 +9,65 @@ public class CreateServiceCommandValidator : AbstractValidator<CreateServiceComm
         _ = RuleFor(x => x.BusinessId)
             .NotEmpty()
             .WithMessage("Business ID is required.")
-            .Must(BeValidGuid)
-            .WithMessage("Business ID must be a valid GUID format.");
+            .Must(BeValidOpaqueId)
+            .WithMessage("Business ID must be 1-128 UTF-8 bytes without control characters.");
 
         _ = RuleFor(x => x.Name)
             .NotEmpty()
             .WithMessage("Service name is required.")
-            .Length(2, 100)
-            .WithMessage("Service name must be between 2 and 100 characters.")
-            .Matches(@"^[a-zA-Z0-9\s\-&'.,()]+$")
-            .WithMessage("Service name contains invalid characters.");
+            .MaximumLength(100)
+            .WithMessage("Service name cannot exceed 100 characters.")
+            .Must(value => value.All(character => !char.IsControl(character)))
+            .WithMessage("Service name contains control characters.");
 
         _ = RuleFor(x => x.Description)
             .NotEmpty()
             .WithMessage("Service description is required.")
-            .Length(10, 500)
-            .WithMessage("Service description must be between 10 and 500 characters.");
+            .MaximumLength(2000)
+            .WithMessage("Service description cannot exceed 2000 characters.")
+            .Must(HaveValidDescriptionCharacters)
+            .WithMessage("Service description contains invalid control characters.");
+
+        _ = RuleFor(x => x.Category)
+            .NotEmpty()
+            .MaximumLength(100)
+            .Must(value => value!.All(character => !char.IsControl(character)))
+            .When(x => x.Category is not null);
 
         _ = RuleFor(x => x.Price)
-            .GreaterThan(0)
-            .WithMessage("Service price must be greater than 0.")
-            .LessThanOrEqualTo(10000)
-            .WithMessage("Service price cannot exceed $10,000.")
-            .PrecisionScale(10, 2, false)
+            .InclusiveBetween(0m, 1_000_000m)
+            .WithMessage("Service price must be between 0 and 1,000,000.")
+            .PrecisionScale(9, 2, false)
             .WithMessage("Service price can have at most 2 decimal places.");
 
         _ = RuleFor(x => x.DurationMinutes)
-            .GreaterThan(0)
-            .WithMessage("Service duration must be greater than 0 minutes.")
-            .LessThanOrEqualTo(480)
-            .WithMessage("Service duration cannot exceed 8 hours (480 minutes).")
+            .InclusiveBetween(15, 480)
+            .WithMessage("Service duration must be between 15 and 480 minutes.")
             .Must(BeValidDuration)
-            .WithMessage("Service duration should be in 15-minute increments.");
+            .WithMessage("Service duration must be in 15-minute increments.");
 
         _ = RuleFor(x => x.ImageUrl)
-            .Must(BeValidUrl)
+            .Must(BeValidHttpsUrl)
             .When(x => !string.IsNullOrEmpty(x.ImageUrl))
-            .WithMessage("Image URL must be a valid URL format.");
+            .WithMessage("Image URL must be an absolute HTTPS URL.");
 
         _ = RuleFor(x => x.Tags)
             .Must(HaveValidTags)
             .When(x => x.Tags != null && x.Tags.Any())
-            .WithMessage("Tags must be between 2 and 30 characters each and contain only letters, numbers, spaces, and hyphens.");
+            .WithMessage("Tags must contain at most 20 unique values of 1-50 characters.");
+
+        _ = RuleFor(x => x.Location)
+            .NotEmpty()
+            .MaximumLength(100)
+            .Must(value => value!.All(character => !char.IsControl(character)))
+            .When(x => x.Location is not null);
     }
 
-    private static bool BeValidGuid(string id)
-    {
-        return Guid.TryParse(id, out _);
-    }
+    private static bool BeValidOpaqueId(string id) =>
+        System.Text.Encoding.UTF8.GetByteCount(id) <= 128 && id.All(character => !char.IsControl(character));
+
+    private static bool HaveValidDescriptionCharacters(string value) =>
+        value.All(character => character == '\n' || !char.IsControl(character));
 
     private static bool BeValidDuration(int durationMinutes)
     {
@@ -64,19 +75,22 @@ public class CreateServiceCommandValidator : AbstractValidator<CreateServiceComm
         return durationMinutes % 15 == 0;
     }
 
-    private static bool BeValidUrl(string? url)
+    private static bool BeValidHttpsUrl(string? url)
     {
-        return Uri.TryCreate(url, UriKind.Absolute, out _);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)) return false;
+        var allowedScheme = parsed.Scheme == Uri.UriSchemeHttps ||
+            (parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback);
+        return allowedScheme && string.IsNullOrEmpty(parsed.UserInfo) && string.IsNullOrEmpty(parsed.Fragment) &&
+               parsed.IsDefaultPort && url!.Length <= 2048;
     }
 
     private static bool HaveValidTags(List<string>? tags)
     {
         if (tags == null) return true;
 
-        return tags.All(tag =>
-            !string.IsNullOrWhiteSpace(tag) &&
-            tag.Length >= 2 &&
-            tag.Length <= 30 &&
-            System.Text.RegularExpressions.Regex.IsMatch(tag, @"^[a-zA-Z0-9\s\-]+$"));
+        return tags.Count <= 20 &&
+               tags.All(tag => !string.IsNullOrWhiteSpace(tag) && tag.Length <= 50 &&
+                               tag.All(character => !char.IsControl(character))) &&
+               tags.Distinct(StringComparer.OrdinalIgnoreCase).Count() == tags.Count;
     }
 }

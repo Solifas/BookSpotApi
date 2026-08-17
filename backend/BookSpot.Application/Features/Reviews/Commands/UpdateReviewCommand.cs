@@ -28,7 +28,8 @@ public class UpdateReviewHandler : IRequestHandler<UpdateReviewCommand, Review?>
             !string.Equals(booking.ClientId, _claims.GetCurrentUserId(), StringComparison.Ordinal)) return null;
 
         existing.Rating = request.Rating;
-        existing.Comment = request.Comment;
+        existing.Comment = request.Comment.Trim();
+        existing.UpdatedAt = DateTime.UtcNow;
 
         await _reviews.SaveAsync(existing);
         return existing;

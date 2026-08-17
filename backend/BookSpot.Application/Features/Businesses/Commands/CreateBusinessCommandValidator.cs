@@ -9,30 +9,30 @@ public class CreateBusinessCommandValidator : AbstractValidator<CreateBusinessCo
         RuleFor(x => x.BusinessName)
             .NotEmpty()
             .WithMessage("Business name is required.")
-            .Length(2, 100)
-            .WithMessage("Business name must be between 2 and 100 characters.")
-            .Matches(@"^[a-zA-Z0-9\s\-&'.,()]+$")
-            .WithMessage("Business name contains invalid characters.");
+            .MaximumLength(100)
+            .Must(value => value.All(character => !char.IsControl(character)))
+            .WithMessage("Business name contains control characters.");
 
         RuleFor(x => x.Description)
             .NotEmpty()
             .WithMessage("Business description is required.")
-            .Length(10, 1000)
-            .WithMessage("Business description must be between 10 and 1000 characters.");
+            .MaximumLength(2000)
+            .Must(value => value.All(character => character == '\n' || !char.IsControl(character)))
+            .WithMessage("Business description contains invalid control characters.");
 
         RuleFor(x => x.Address)
             .NotEmpty()
             .WithMessage("Business address is required.")
-            .Length(5, 200)
-            .WithMessage("Business address must be between 5 and 200 characters.");
+            .MaximumLength(250)
+            .Must(value => value.All(character => !char.IsControl(character)))
+            .WithMessage("Business address contains control characters.");
 
         RuleFor(x => x.Phone)
             .NotEmpty()
             .WithMessage("Business phone number is required.")
-            .Length(10, 20)
-            .WithMessage("Phone number must be between 10 and 20 characters.")
-            .Matches(@"^[\+]?[0-9\s\-\(\)\.]+$")
-            .WithMessage("Phone number contains invalid characters. Only numbers, spaces, hyphens, parentheses, periods, and plus sign are allowed.");
+            .MaximumLength(32)
+            .Matches(@"^\+?[0-9][0-9 ()-]{5,30}[0-9]$")
+            .WithMessage("Phone number has an invalid format.");
 
         RuleFor(x => x.Email)
             .NotEmpty()
@@ -45,24 +45,27 @@ public class CreateBusinessCommandValidator : AbstractValidator<CreateBusinessCo
         RuleFor(x => x.City)
             .NotEmpty()
             .WithMessage("City is required.")
-            .Length(2, 50)
-            .WithMessage("City must be between 2 and 50 characters.")
-            .Matches(@"^[a-zA-Z\s\-'.,()]+$")
-            .WithMessage("City contains invalid characters.");
+            .MaximumLength(100)
+            .Must(value => value.All(character => !char.IsControl(character)))
+            .WithMessage("City contains control characters.");
 
         RuleFor(x => x.Website)
-            .Must(BeValidUrl)
+            .Must(BeValidHttpsUrl)
             .When(x => !string.IsNullOrEmpty(x.Website))
-            .WithMessage("Website must be a valid URL format.");
+            .WithMessage("Website must be an absolute HTTPS URL.");
 
         RuleFor(x => x.ImageUrl)
-            .Must(BeValidUrl)
+            .Must(BeValidHttpsUrl)
             .When(x => !string.IsNullOrEmpty(x.ImageUrl))
-            .WithMessage("Image URL must be a valid URL format.");
+            .WithMessage("Image URL must be an absolute HTTPS URL.");
     }
 
-    private static bool BeValidUrl(string? url)
+    private static bool BeValidHttpsUrl(string? url)
     {
-        return Uri.TryCreate(url, UriKind.Absolute, out _);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)) return false;
+        var allowedScheme = parsed.Scheme == Uri.UriSchemeHttps ||
+            (parsed.Scheme == Uri.UriSchemeHttp && parsed.IsLoopback);
+        return allowedScheme && string.IsNullOrEmpty(parsed.UserInfo) && string.IsNullOrEmpty(parsed.Fragment) &&
+               parsed.IsDefaultPort && url!.Length <= 2048;
     }
 }

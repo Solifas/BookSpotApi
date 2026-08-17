@@ -1,166 +1,142 @@
+using BookSpot.Application.DTOs.Canonical;
+using BookSpot.Application.Exceptions;
+using BookSpot.Application.Features.Businesses.Queries;
+using BookSpot.Application.Features.Canonical.Queries;
 using BookSpot.Application.Features.Services.Commands;
 using BookSpot.Application.Features.Services.Queries;
-using BookSpot.Application.Exceptions;
-using BookSpot.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookSpot.API.Controllers;
 
-/// <summary>
-/// Services controller for managing service offerings
-/// </summary>
 [ApiController]
 [Route("services")]
 [Produces("application/json")]
-public class ServicesController : ControllerBase
+public class ServicesController(IMediator mediator) : ControllerBase
 {
-    private readonly IMediator _mediator;
-    public ServicesController(IMediator mediator) => _mediator = mediator;
-
-    /// <summary>
-    /// Get all available services
-    /// </summary>
-    /// <returns>List of all services</returns>
-    /// <response code="200">Services retrieved successfully</response>
     [HttpGet]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(IEnumerable<Service>), 200)]
-    public async Task<ActionResult<IEnumerable<Service>>> GetAll()
-    {
-        var services = await _mediator.Send(new GetAllServicesQuery());
-        return Ok(services);
-    }
+    [ProducesResponseType(typeof(ServiceSearchResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ServiceSearchResponse>> GetAll() =>
+        Ok(await mediator.Send(new SearchServicesQuery(Page: 1, PageSize: 100)));
 
-    /// <summary>
-    /// Search services with filters
-    /// </summary>
-    /// <param name="name">Filter by service name (partial match)</param>
-    /// <param name="city">Filter by business city (partial match)</param>
-    /// <param name="minPrice">Minimum price filter</param>
-    /// <param name="maxPrice">Maximum price filter</param>
-    /// <param name="minDuration">Minimum duration in minutes</param>
-    /// <param name="maxDuration">Maximum duration in minutes</param>
-    /// <param name="page">Page number (default: 1)</param>
-    /// <param name="pageSize">Items per page (default: 20, max: 100)</param>
-    /// <returns>Filtered list of services</returns>
-    /// <response code="200">Services retrieved successfully</response>
-    /// <response code="400">Invalid search parameters</response>
     [HttpGet("search")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(IEnumerable<Service>), 200)]
-    [ProducesResponseType(400)]
-    public async Task<ActionResult<IEnumerable<Service>>> Search(
-        [FromQuery] string? name = null,
-        [FromQuery] string? city = null,
-        [FromQuery] decimal? minPrice = null,
-        [FromQuery] decimal? maxPrice = null,
-        [FromQuery] int? minDuration = null,
-        [FromQuery] int? maxDuration = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+    [ProducesResponseType(typeof(ServiceSearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ServiceSearchResponse>> Search(
+        [FromQuery(Name = "q")] string? q = null, [FromQuery] string? name = null,
+        [FromQuery] string? category = null,
+        [FromQuery] string? city = null, [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null, [FromQuery] int? minDuration = null,
+        [FromQuery] int? maxDuration = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        if (pageSize > 100) pageSize = 100;
-        if (page < 1) page = 1;
-
-        var query = new SearchServicesQuery(name, city, minPrice, maxPrice, minDuration, maxDuration, page, pageSize);
-        var services = await _mediator.Send(query);
-        return Ok(services);
+        if (page is < 1 or > 100000 || pageSize is < 1 or > 100)
+            throw new ValidationException("Invalid pagination values.");
+        if (q is not null && name is not null)
+            throw new ValidationException(new Dictionary<string, string[]> { ["q"] = ["mutually_exclusive"] });
+        var searchText = q ?? name;
+        if (searchText is not null && (string.IsNullOrWhiteSpace(searchText) || searchText.Length > 200))
+            throw new ValidationException(new Dictionary<string, string[]> { [q is null ? "name" : "q"] = ["invalid"] });
+        if (category is not null && (string.IsNullOrWhiteSpace(category) || category.Length > 100) ||
+            city is not null && (string.IsNullOrWhiteSpace(city) || city.Length > 100))
+            throw new ValidationException("Invalid search text filter.");
+        if (minPrice is < 0 or > 1_000_000 || maxPrice is < 0 or > 1_000_000 || minPrice > maxPrice)
+            throw new ValidationException("Invalid price range.");
+        if (!ValidDuration(minDuration) || !ValidDuration(maxDuration) || minDuration > maxDuration)
+            throw new ValidationException("Invalid duration range.");
+        if (name is not null)
+        {
+            Response.Headers["Deprecation"] = "true";
+            Response.Headers["Sunset"] = "Wed, 31 Mar 2027 00:00:00 GMT";
+        }
+        return Ok(await mediator.Send(new SearchServicesQuery(searchText?.Trim(), category?.Trim(), city?.Trim(), minPrice, maxPrice,
+            minDuration, maxDuration, page, pageSize)));
     }
 
-    /// <summary>
-    /// Get service by ID
-    /// </summary>
-    /// <param name="id">Service ID</param>
-    /// <returns>Service details</returns>
-    /// <response code="200">Service found</response>
-    /// <response code="404">Service not found</response>
+    private static bool ValidDuration(int? value) => value is null || value is >= 15 and <= 480 && value % 15 == 0;
+
     [HttpGet("{id}")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(Service), 200)]
-    [ProducesResponseType(404)]
-    public async Task<ActionResult<Service>> Get(string id)
+    [ProducesResponseType(typeof(ServiceDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ServiceDto>> Get(string id)
     {
-        var service = await _mediator.Send(new GetServiceQuery(id));
-        if (service is null)
-            throw new NotFoundException("Service", id);
-
-        return Ok(service);
+        var service = await mediator.Send(new GetServiceQuery(id));
+        if (service is null || !service.IsActive) throw new NotFoundException("Service", id);
+        return Ok(await ToDto(service));
     }
 
-    /// <summary>
-    /// Create a new service
-    /// </summary>
-    /// <param name="command">Service creation details</param>
-    /// <returns>Created service</returns>
-    /// <response code="201">Service created successfully</response>
-    /// <response code="400">Invalid input or validation errors</response>
-    /// <response code="401">Unauthorized - JWT token required</response>
-    /// <response code="403">Forbidden - Only business owners can create services</response>
     [HttpPost]
     [Authorize(Policy = "ProviderOnly")]
-    [ProducesResponseType(typeof(Service), 201)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(403)]
-    public async Task<ActionResult<Service>> Post([FromBody] CreateServiceCommand command)
+    [ProducesResponseType(typeof(ServiceDto), StatusCodes.Status201Created)]
+    public async Task<ActionResult<ServiceDto>> Post([FromBody] CreateServiceRequest request)
     {
-        var service = await _mediator.Send(command);
-        return CreatedAtAction(nameof(Get), new { id = service.Id }, service);
+        var service = await mediator.Send(new CreateServiceCommand(request.BusinessId, request.Name,
+            request.Description, request.Category, request.PriceAmount, request.DurationMinutes, request.ImageUrl,
+            request.Tags, request.Location, request.IsActive));
+        return CreatedAtAction(nameof(Get), new { id = service.Id }, await ToDto(service));
     }
 
-    /// <summary>
-    /// Update an existing service
-    /// </summary>
-    /// <param name="id">Service ID</param>
-    /// <param name="command">Service update details</param>
-    /// <returns>Updated service</returns>
-    /// <response code="200">Service updated successfully</response>
-    /// <response code="400">Invalid input or ID mismatch</response>
-    /// <response code="404">Service not found</response>
-    /// <response code="401">Unauthorized - JWT token required</response>
-    /// <response code="403">Forbidden - Only service owner can update</response>
     [HttpPut("{id}")]
     [Authorize(Policy = "ProviderOnly")]
-    [ProducesResponseType(typeof(Service), 200)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(403)]
-    public async Task<ActionResult<Service>> Put(string id, [FromBody] UpdateServiceCommand command)
+    [ProducesResponseType(typeof(ServiceDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ServiceDto>> Put(string id, [FromBody] UpdateServiceCommand command)
     {
-        if (id != command.Id)
-            throw new ValidationException("The ID in the URL does not match the ID in the request body.");
-
-        var updated = await _mediator.Send(command);
-        if (updated is null)
-            throw new NotFoundException("Service", id);
-
-        return Ok(updated);
+        if (id != command.Id) throw new ValidationException("The ID in the URL does not match the ID in the request body.");
+        var updated = await mediator.Send(command);
+        if (updated is null) throw new NotFoundException("Service", id);
+        Response.Headers["Deprecation"] = "true";
+        Response.Headers["Sunset"] = "Wed, 31 Mar 2027 00:00:00 GMT";
+        return Ok(await ToDto(updated));
     }
 
-    /// <summary>
-    /// Delete a service
-    /// </summary>
-    /// <param name="id">Service ID</param>
-    /// <returns>No content</returns>
-    /// <response code="204">Service deleted successfully</response>
-    /// <response code="404">Service not found</response>
-    /// <response code="401">Unauthorized - JWT token required</response>
-    /// <response code="403">Forbidden - Only service owner can delete</response>
+    [HttpPatch("{id}")]
+    [Authorize(Policy = "ProviderOnly")]
+    [ProducesResponseType(typeof(ServiceDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ServiceDto>> Patch(string id, [FromBody] UpdateServiceRequest request)
+    {
+        if (request.Name is null && request.Description is null && request.Category is null &&
+            request.PriceAmount is null && request.DurationMinutes is null && request.ImageUrl is null &&
+            request.Tags is null && request.Location is null && request.IsActive is null)
+            throw new ValidationException(new Dictionary<string, string[]> { ["$"] = ["empty_patch"] });
+        var updated = await mediator.Send(new UpdateServiceCommand(id, request.Name, request.Description,
+            request.Category, request.PriceAmount, request.DurationMinutes, request.ImageUrl, request.Tags,
+            request.Location, request.IsActive));
+        if (updated is null) throw new NotFoundException("Service", id);
+        return Ok(await ToDto(updated));
+    }
+
+    [HttpGet("{id}/availability")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ServiceAvailabilityDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ServiceAvailabilityDto>> GetAvailability(string id, [FromQuery] DateTimeOffset from,
+        [FromQuery] DateTimeOffset to)
+    {
+        if (!HasExplicitWholeSecondOffset("from") || !HasExplicitWholeSecondOffset("to"))
+            throw new ValidationException(new Dictionary<string, string[]> { ["from"] = ["invalid_timestamp"] });
+        return Ok(await mediator.Send(new GetServiceAvailabilityQuery(id, from, to)));
+    }
+
+    private bool HasExplicitWholeSecondOffset(string name) =>
+        System.Text.RegularExpressions.Regex.IsMatch(Request.Query[name].ToString(),
+            @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$");
+
     [HttpDelete("{id}")]
     [Authorize(Policy = "ProviderOnly")]
-    [ProducesResponseType(204)]
-    [ProducesResponseType(404)]
-    [ProducesResponseType(401)]
-    [ProducesResponseType(403)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Delete(string id)
     {
-        var deleted = await _mediator.Send(new DeleteServiceCommand(id));
-        if (!deleted)
-            throw new NotFoundException("Service", id);
-
+        if (!await mediator.Send(new DeleteServiceCommand(id))) throw new NotFoundException("Service", id);
         return NoContent();
+    }
+
+    private async Task<ServiceDto> ToDto(BookSpot.Domain.Entities.Service service)
+    {
+        var business = await mediator.Send(new GetBusinessQuery(service.BusinessId));
+        if (business is null || !business.IsActive) throw new NotFoundException("Service", service.Id);
+        var provider = await mediator.Send(new BookSpot.Application.Features.Profiles.Queries.GetProfileQuery(business.ProviderId));
+        return CanonicalDtoMapper.ToServiceDto(service, business, provider?.FullName ?? service.ProviderName);
     }
 }

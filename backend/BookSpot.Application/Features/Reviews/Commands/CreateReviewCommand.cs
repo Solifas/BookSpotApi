@@ -3,6 +3,8 @@ using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Exceptions;
 using MediatR;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace BookSpot.Application.Features.Reviews.Commands;
 
@@ -29,16 +31,20 @@ public class CreateReviewHandler : IRequestHandler<CreateReviewCommand, Review>
             throw new NotFoundException("Booking not found.");
         }
         if (booking.Status != "completed") throw new ConflictException("Only completed bookings can be reviewed.");
+        if (await _reviews.GetByBookingAsync(request.BookingId) is not null)
+            throw new ConflictException("The booking already has a review.");
 
         var review = new Review
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.BookingId))).ToLowerInvariant(),
             BookingId = request.BookingId,
             Rating = request.Rating,
-            Comment = request.Comment
+            Comment = request.Comment.Trim(),
+            CreatedAt = DateTime.UtcNow
         };
 
-        await _reviews.SaveAsync(review);
+        if (!await _reviews.CreateAsync(review))
+            throw new ConflictException("The booking already has a review.");
         return review;
     }
 }

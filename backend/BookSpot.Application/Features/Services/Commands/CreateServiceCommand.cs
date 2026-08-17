@@ -15,6 +15,7 @@ public record CreateServiceCommand(
     int DurationMinutes,
     string? ImageUrl = null,
     List<string>? Tags = null,
+    string? Location = null,
     bool IsActive = true
 ) : IRequest<Service>;
 
@@ -89,6 +90,7 @@ public class CreateServiceHandler : IRequestHandler<CreateServiceCommand, Servic
             DurationMinutes = request.DurationMinutes,
             ImageUrl = request.ImageUrl,
             Tags = request.Tags ?? new List<string>(),
+            Location = request.Location,
             IsActive = request.IsActive,
             CreatedAt = DateTime.UtcNow
         };

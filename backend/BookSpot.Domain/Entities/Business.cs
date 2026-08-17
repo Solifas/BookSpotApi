@@ -39,4 +39,7 @@ public class Business
     public double Rating { get; set; } = 0.0;
     [DynamoDBProperty]
     public int ReviewCount { get; set; } = 0;
+
+    [DynamoDBProperty]
+    public string TimeZone { get; set; } = "Africa/Johannesburg";
 }

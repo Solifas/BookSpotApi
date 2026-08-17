@@ -13,7 +13,32 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(entry => string.IsNullOrEmpty(entry.Key) ? "$" : entry.Key,
+                entry => entry.Value!.Errors.Select(_ => "invalid").ToArray());
+        var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
+        {
+            Type = "https://bookspot.example/problems/validation-failed",
+            Title = "Validation failed",
+            Status = StatusCodes.Status400BadRequest,
+            Detail = "One or more request fields are invalid.",
+            Instance = context.HttpContext.Request.Path
+        };
+        problem.Extensions["code"] = "validation_failed";
+        problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+        problem.Extensions["errors"] = errors;
+        return new Microsoft.AspNetCore.Mvc.ObjectResult(problem)
+        {
+            StatusCode = StatusCodes.Status400BadRequest,
+            ContentTypes = { "application/problem+json" }
+        };
+    };
+});
 
 // Add CORS configuration
 builder.Services.AddCors(options =>
@@ -120,11 +145,29 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ClientOrProvider", policy =>
         policy.RequireClaim("user_type", "client", "provider"));
 });
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationMiddlewareResultHandler,
+    BookSpot.Infrastructure.Middleware.ProblemDetailsAuthorizationMiddlewareResultHandler>();
 
 // Add Swagger services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.UseOneOfForPolymorphism();
+    options.SelectSubTypesUsing(baseType => baseType == typeof(BookSpot.Application.DTOs.Canonical.BookingDto)
+        ? [typeof(BookSpot.Application.DTOs.Canonical.ClientBookingDto),
+            typeof(BookSpot.Application.DTOs.Canonical.ProviderBookingDto)]
+        : baseType == typeof(BookSpot.Application.DTOs.Canonical.DashboardDto)
+            ? [typeof(BookSpot.Application.DTOs.Canonical.ClientDashboardDto),
+                typeof(BookSpot.Application.DTOs.Canonical.ProviderDashboardDto)]
+            : []);
+    options.SelectDiscriminatorNameUsing(baseType =>
+        baseType == typeof(BookSpot.Application.DTOs.Canonical.BookingDto) ? "view" :
+        baseType == typeof(BookSpot.Application.DTOs.Canonical.DashboardDto) ? "kind" : null);
+    options.SelectDiscriminatorValueUsing(subType =>
+        subType == typeof(BookSpot.Application.DTOs.Canonical.ClientBookingDto) ? "client" :
+        subType == typeof(BookSpot.Application.DTOs.Canonical.ProviderBookingDto) ? "provider" :
+        subType == typeof(BookSpot.Application.DTOs.Canonical.ClientDashboardDto) ? "client" :
+        subType == typeof(BookSpot.Application.DTOs.Canonical.ProviderDashboardDto) ? "provider" : null);
     options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
         Title = "BookSpot API",
@@ -257,34 +300,22 @@ app.Use(async (context, next) =>
 app.Use(async (context, next) =>
 {
     var origin = context.Request.Headers["Origin"].FirstOrDefault();
-    Console.WriteLine($"🌐 Request from origin: {origin ?? "null"}");
-    Console.WriteLine($"🔍 Request method: {context.Request.Method}");
-    Console.WriteLine($"📍 Request path: {context.Request.Path}");
 
     // Handle Private Network Access preflight requests
     if (context.Request.Method == "OPTIONS" &&
         context.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
     {
-        Console.WriteLine("🔒 Private Network Access preflight request detected");
-        context.Response.Headers.Add("Access-Control-Allow-Private-Network", "true");
+        context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
     }
 
     // Always add Private Network Access header for requests from public origins to localhost
     if (!string.IsNullOrEmpty(origin) && origin.StartsWith("https://") &&
         (context.Request.Host.Host == "localhost" || context.Request.Host.Host == "127.0.0.1"))
     {
-        Console.WriteLine("🔓 Adding Private Network Access header");
-        context.Response.Headers.Add("Access-Control-Allow-Private-Network", "true");
+        context.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
     }
 
     await next();
-
-    Console.WriteLine($"✅ Response status: {context.Response.StatusCode}");
-    var corsHeaders = context.Response.Headers.Where(h => h.Key.StartsWith("Access-Control"));
-    foreach (var header in corsHeaders)
-    {
-        Console.WriteLine($"🔒 CORS Header: {header.Key} = {header.Value}");
-    }
 });
 
 // Configure CORS (must be before authentication/authorization)

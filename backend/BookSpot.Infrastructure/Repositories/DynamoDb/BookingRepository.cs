@@ -22,7 +22,11 @@ public class BookingRepository : IBookingRepository
         _dynamoDb = dynamoDb;
     }
 
-    public async Task<Booking?> GetAsync(string id) => await _context.LoadAsync<Booking>(id);
+    public async Task<Booking?> GetAsync(string id)
+    {
+        var booking = await _context.LoadAsync<Booking>(id);
+        return booking is null ? null : NormalizeInstants(booking);
+    }
 
     public async Task<Booking> CreateAsync(Booking booking, string idempotencyKey, string requestFingerprint)
     {
@@ -127,7 +131,8 @@ public class BookingRepository : IBookingRepository
         {
             replay = await TryGetReplayAsync(requestKey, actorBinding, fingerprint);
             if (replay is not null) return replay;
-            throw new ConflictException("The requested booking slot is no longer available.");
+            throw new ConflictException("The requested booking slot is no longer available.",
+                "booking_slot_conflict");
         }
     }
 
@@ -248,7 +253,7 @@ public class BookingRepository : IBookingRepository
         {
             new("ProviderProfileId", ScanOperator.Equal, providerId)
         });
-        var allBookings = await search.GetRemainingAsync();
+        var allBookings = (await search.GetRemainingAsync()).Select(NormalizeInstants).ToArray();
         return allBookings.Where(booking =>
             booking.Status is "pending" or "confirmed" && startTime < booking.EndTime && endTime > booking.StartTime);
     }
@@ -259,7 +264,16 @@ public class BookingRepository : IBookingRepository
         {
             new("ProviderProfileId", ScanOperator.Equal, providerId)
         });
-        return await search.GetRemainingAsync();
+        return (await search.GetRemainingAsync()).Select(NormalizeInstants).ToArray();
+    }
+
+    public async Task<IEnumerable<Booking>> GetBookingsByBusinessAsync(string businessId)
+    {
+        var search = _context.ScanAsync<Booking>(new List<ScanCondition>
+        {
+            new(nameof(Booking.BusinessId), ScanOperator.Equal, businessId)
+        }, new DynamoDBOperationConfig { ConsistentRead = true });
+        return (await search.GetRemainingAsync()).Select(NormalizeInstants).ToArray();
     }
 
     public async Task<IEnumerable<Booking>> GetBookingsByClientAsync(string clientId)
@@ -268,7 +282,7 @@ public class BookingRepository : IBookingRepository
         {
             new("ClientId", ScanOperator.Equal, clientId)
         });
-        return await search.GetRemainingAsync();
+        return (await search.GetRemainingAsync()).Select(NormalizeInstants).ToArray();
     }
 
     private async Task<Booking?> TryGetReplayAsync(string requestKey, string actorBinding, string fingerprint)
@@ -283,11 +297,14 @@ public class BookingRepository : IBookingRepository
         if (response.Item.GetValueOrDefault("ActorBinding")?.S != actorBinding ||
             response.Item.GetValueOrDefault("RequestFingerprint")?.S != fingerprint)
         {
-            throw new ConflictException("The idempotency key was already used for a different request.");
+            throw new ConflictException("The idempotency key was already used for a different request.",
+                "idempotency_key_reused");
         }
 
         var bookingId = response.Item["BookingId"].S;
-        return await _context.LoadAsync<Booking>(bookingId, new DynamoDBOperationConfig { ConsistentRead = true });
+        var booking = await _context.LoadAsync<Booking>(bookingId,
+            new DynamoDBOperationConfig { ConsistentRead = true });
+        return booking is null ? null : NormalizeInstants(booking);
     }
 
     private static void AddSlotMutations(List<TransactWriteItem> transaction, BookingActionPersistenceRequest request)
@@ -388,29 +405,52 @@ public class BookingRepository : IBookingRepository
         ["SchemaVersion"] = N(1)
     };
 
-    private static Dictionary<string, AttributeValue> BookingItem(Booking booking) => new()
+    private static Dictionary<string, AttributeValue> BookingItem(Booking booking)
     {
-        ["Id"] = S(booking.Id),
-        ["ServiceId"] = S(booking.ServiceId),
-        ["BusinessId"] = S(booking.BusinessId),
-        ["ClientId"] = S(booking.ClientId),
-        ["ProviderId"] = S(booking.ProviderId),
-        ["ProviderProfileId"] = S(booking.ProviderProfileId),
-        ["ProviderName"] = S(booking.ProviderName ?? string.Empty),
-        ["StartTime"] = S(booking.StartTime.ToString("O", CultureInfo.InvariantCulture)),
-        ["EndTime"] = S(booking.EndTime.ToString("O", CultureInfo.InvariantCulture)),
-        ["Status"] = S(booking.Status),
-        ["CreatedAt"] = S(booking.CreatedAt.ToString("O", CultureInfo.InvariantCulture)),
-        ["UpdatedAt"] = S(booking.UpdatedAt.ToString("O", CultureInfo.InvariantCulture)),
-        ["Version"] = N(booking.Version)
-    };
+        var item = new Dictionary<string, AttributeValue>
+        {
+            ["Id"] = S(booking.Id),
+            ["ServiceId"] = S(booking.ServiceId),
+            ["BusinessId"] = S(booking.BusinessId),
+            ["ClientId"] = S(booking.ClientId),
+            ["ProviderId"] = S(booking.ProviderId),
+            ["ProviderProfileId"] = S(booking.ProviderProfileId),
+            ["ProviderName"] = S(booking.ProviderName ?? string.Empty),
+            ["StartTime"] = S(booking.StartTime.ToString("O", CultureInfo.InvariantCulture)),
+            ["EndTime"] = S(booking.EndTime.ToString("O", CultureInfo.InvariantCulture)),
+            ["Status"] = S(booking.Status),
+            ["CreatedAt"] = S(booking.CreatedAt.ToString("O", CultureInfo.InvariantCulture)),
+            ["UpdatedAt"] = S(booking.UpdatedAt.ToString("O", CultureInfo.InvariantCulture)),
+            ["Version"] = N(booking.Version)
+        };
+        if (booking.PriceAmount is not null) item["PriceAmount"] = N(booking.PriceAmount.Value);
+        if (booking.ServiceNameSnapshot is not null) item["ServiceNameSnapshot"] = S(booking.ServiceNameSnapshot);
+        if (booking.DurationMinutesSnapshot is not null) item["DurationMinutesSnapshot"] = N(booking.DurationMinutesSnapshot.Value);
+        if (booking.BusinessNameSnapshot is not null) item["BusinessNameSnapshot"] = S(booking.BusinessNameSnapshot);
+        if (booking.BusinessAddressSnapshot is not null) item["BusinessAddressSnapshot"] = S(booking.BusinessAddressSnapshot);
+        if (booking.BusinessCitySnapshot is not null) item["BusinessCitySnapshot"] = S(booking.BusinessCitySnapshot);
+        if (booking.ClientFullNameSnapshot is not null) item["ClientFullNameSnapshot"] = S(booking.ClientFullNameSnapshot);
+        if (booking.ClientEmailSnapshot is not null) item["ClientEmailSnapshot"] = S(booking.ClientEmailSnapshot);
+        if (booking.ClientPhoneSnapshot is not null) item["ClientPhoneSnapshot"] = S(booking.ClientPhoneSnapshot);
+        return item;
+    }
 
     private static string SlotKey(string businessId, DateTime startTime) =>
         $"SLOT#v1#{Encode(businessId)}#{Encode("single")}#{startTime.ToUniversalTime():yyyyMMdd'T'HHmmss'Z'}";
+
+    private static Booking NormalizeInstants(Booking booking)
+    {
+        booking.StartTime = booking.StartTime.ToUniversalTime();
+        booking.EndTime = booking.EndTime.ToUniversalTime();
+        booking.CreatedAt = booking.CreatedAt.ToUniversalTime();
+        booking.UpdatedAt = booking.UpdatedAt.ToUniversalTime();
+        return booking;
+    }
 
     private static string Digest(string value) => Encode(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static string Encode(string value) => Encode(Encoding.UTF8.GetBytes(value));
     private static string Encode(byte[] value) => Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     private static AttributeValue S(string value) => new() { S = value };
     private static AttributeValue N(int value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
+    private static AttributeValue N(decimal value) => new() { N = value.ToString(CultureInfo.InvariantCulture) };
 }

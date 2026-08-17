@@ -1,4 +1,5 @@
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using BookSpot.Application.Abstractions.Repositories;
 using BookSpot.Domain.Entities;
 
@@ -12,4 +13,11 @@ public class BusinessHourRepository : IBusinessHourRepository
     public async Task<BusinessHour?> GetAsync(string id) => await _context.LoadAsync<BusinessHour>(id);
     public Task SaveAsync(BusinessHour businessHour) => _context.SaveAsync(businessHour);
     public Task DeleteAsync(string id) => _context.DeleteAsync<BusinessHour>(id);
+
+    public async Task<IEnumerable<BusinessHour>> GetByBusinessAsync(string businessId)
+    {
+        var search = _context.ScanAsync<BusinessHour>(
+            new[] { new ScanCondition(nameof(BusinessHour.BusinessId), ScanOperator.Equal, businessId) });
+        return await search.GetRemainingAsync();
+    }
 }

@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BookSpot.API\BookSpot.API.csproj" />
     <ProjectReference Include="..\BookSpot.Application\BookSpot.Application.csproj" />
     <ProjectReference Include="..\BookSpot.Domain\BookSpot.Domain.csproj" />
     <ProjectReference Include="..\BookSpot.Infrastructure\BookSpot.Infrastructure.csproj" />

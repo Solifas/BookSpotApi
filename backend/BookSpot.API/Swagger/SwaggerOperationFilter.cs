@@ -45,6 +45,17 @@ public class SwaggerOperationFilter : IOperationFilter
                 break;
         }
 
+        var problemSchema = context.SchemaGenerator.GenerateSchema(
+            typeof(Microsoft.AspNetCore.Mvc.ProblemDetails), context.SchemaRepository);
+        foreach (var code in new[] { "400", "401", "403", "404", "409", "500", "503" })
+        {
+            if (!operation.Responses.TryGetValue(code, out var response)) continue;
+            response.Content = new Dictionary<string, OpenApiMediaType>
+            {
+                ["application/problem+json"] = new() { Schema = problemSchema }
+            };
+        }
+
         // Add operation descriptions based on controller and action
         AddOperationDescriptions(operation, context);
     }

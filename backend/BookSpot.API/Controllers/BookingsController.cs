@@ -2,7 +2,9 @@ using BookSpot.Application.DTOs.Bookings;
 using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.Features.Bookings.Commands;
 using BookSpot.Application.Features.Bookings.Queries;
-using BookSpot.Domain.Entities;
+
+using BookSpot.Application.DTOs.Canonical;
+using BookSpot.Application.Features.Canonical.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -34,12 +36,25 @@ public class BookingsController : ControllerBase
     /// <response code="200">Booking found</response>
     /// <response code="404">Booking not found</response>
     [HttpGet("{id}")]
-    [ProducesResponseType(typeof(Booking), 200)]
+    [ProducesResponseType(typeof(BookingDto), 200)]
     [ProducesResponseType(404)]
-    public async Task<ActionResult<Booking>> Get(string id)
+    public async Task<ActionResult<BookingDto>> Get(string id)
     {
         var booking = await _mediator.Send(new GetBookingQuery(id));
-        return booking is null ? NotFound() : Ok(booking);
+        if (booking is null) throw new BookSpot.Application.Exceptions.NotFoundException("Booking", id);
+        var service = await _mediator.Send(new BookSpot.Application.Features.Services.Queries.GetServiceQuery(booking.ServiceId));
+        var business = await _mediator.Send(
+            new BookSpot.Application.Features.Businesses.Queries.GetBusinessQuery(booking.BusinessId));
+        var client = await _mediator.Send(new BookSpot.Application.Features.Profiles.Queries.GetProfileQuery(booking.ClientId));
+        var view = _claims.IsProvider() ? "provider" : "client";
+        try
+        {
+            return Ok(CanonicalDtoMapper.ToBookingDto(booking, service, business, client, view));
+        }
+        catch (InvalidOperationException)
+        {
+            throw new BookSpot.Application.Exceptions.NotFoundException("Booking", id);
+        }
     }
 
     /// <summary>
@@ -102,6 +117,53 @@ public class BookingsController : ControllerBase
         return Ok(bookings);
     }
 
+    [HttpGet("client/me")]
+    [Authorize(Policy = "ClientOnly")]
+    [ProducesResponseType(typeof(BookingPageDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BookingPageDto>> GetMyClientBookings([FromQuery] string? status = null,
+        [FromQuery] DateTimeOffset? from = null, [FromQuery] DateTimeOffset? to = null)
+    {
+        ValidateCanonicalFilters(status, from, to, null);
+        return Ok(await _mediator.Send(new GetCanonicalBookingPageQuery(_claims.GetCurrentUserId()!, "client",
+            status, from, to)));
+    }
+
+    [HttpGet("provider/me")]
+    [Authorize(Policy = "ProviderOnly")]
+    [ProducesResponseType(typeof(BookingPageDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BookingPageDto>> GetMyProviderBookings([FromQuery] string? businessId = null,
+        [FromQuery] string? status = null, [FromQuery] DateTimeOffset? from = null, [FromQuery] DateTimeOffset? to = null)
+    {
+        ValidateCanonicalFilters(status, from, to, businessId);
+        return Ok(await _mediator.Send(new GetCanonicalBookingPageQuery(_claims.GetCurrentUserId()!, "provider",
+            status, from, to, businessId)));
+    }
+
+    private void ValidateCanonicalFilters(string? status, DateTimeOffset? from, DateTimeOffset? to, string? businessId)
+    {
+        string[] statuses = ["pending", "confirmed", "completed", "cancelled", "no_show"];
+        if (status is not null && !statuses.Contains(status, StringComparer.Ordinal))
+            throw new BookSpot.Application.Exceptions.ValidationException(
+                new Dictionary<string, string[]> { ["status"] = ["invalid_enum"] });
+        if (businessId is not null && (System.Text.Encoding.UTF8.GetByteCount(businessId) > 128 ||
+                                       businessId.Any(char.IsControl)))
+            throw new BookSpot.Application.Exceptions.ValidationException(
+                new Dictionary<string, string[]> { ["businessId"] = ["invalid_id"] });
+        if (!HasExplicitWholeSecondOffset("from", from) || !HasExplicitWholeSecondOffset("to", to))
+            throw new BookSpot.Application.Exceptions.ValidationException(
+                new Dictionary<string, string[]> { ["from"] = ["invalid_timestamp"] });
+        if (from is not null && to is not null && (to <= from || to > from.Value.AddDays(366)))
+            throw new BookSpot.Application.Exceptions.ValidationException("Invalid booking-list time range.");
+    }
+
+    private bool HasExplicitWholeSecondOffset(string name, DateTimeOffset? parsed)
+    {
+        if (parsed is null) return true;
+        var raw = Request.Query[name].ToString();
+        return System.Text.RegularExpressions.Regex.IsMatch(raw,
+            @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$");
+    }
+
     /// <summary>
     /// Create a new booking
     /// </summary>
@@ -123,9 +185,8 @@ public class BookingsController : ControllerBase
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey)
     {
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length is < 16 or > 128)
-        {
-            return BadRequest();
-        }
+            throw new BookSpot.Application.Exceptions.ValidationException(
+                new Dictionary<string, string[]> { ["Idempotency-Key"] = ["invalid_idempotency_key"] });
 
         var booking = await _mediator.Send(new CreateBookingCommand(request.ServiceId, request.StartTime, idempotencyKey));
         return CreatedAtAction(nameof(Get), new { id = booking.Id }, BookingMutationResultDto.From(booking, "client"));

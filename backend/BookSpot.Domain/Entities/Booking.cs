@@ -43,4 +43,31 @@ public class Booking
 
     [DynamoDBProperty]
     public int Version { get; set; } = 1;
+
+    [DynamoDBProperty]
+    public decimal? PriceAmount { get; set; }
+
+    [DynamoDBProperty]
+    public string? ServiceNameSnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public int? DurationMinutesSnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public string? BusinessNameSnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public string? BusinessAddressSnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public string? BusinessCitySnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public string? ClientFullNameSnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public string? ClientEmailSnapshot { get; set; }
+
+    [DynamoDBProperty]
+    public string? ClientPhoneSnapshot { get; set; }
 }

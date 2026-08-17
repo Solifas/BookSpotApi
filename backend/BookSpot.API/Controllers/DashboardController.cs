@@ -4,6 +4,8 @@ using BookSpot.Application.Abstractions.Services;
 using BookSpot.Application.DTOs.Dashboard;
 using BookSpot.Application.Exceptions;
 using BookSpot.Application.Features.Dashboard.Queries;
+using BookSpot.Application.DTOs.Canonical;
+using BookSpot.Application.Features.Canonical.Queries;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -26,6 +28,17 @@ public class DashboardController : ControllerBase
     {
         _mediator = mediator;
         _claimsService = claimsService;
+    }
+
+    [HttpGet("me")]
+    [Authorize(Policy = "ClientOrProvider")]
+    [ProducesResponseType(typeof(DashboardDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<DashboardDto>> GetMine()
+    {
+        var role = _claimsService.GetCurrentUserType();
+        if (role is not ("client" or "provider")) return Forbid();
+        return Ok(await _mediator.Send(new GetCanonicalDashboardQuery(_claimsService.GetCurrentUserId()!, role,
+            DateTime.UtcNow)));
     }
 
     /// <summary>
